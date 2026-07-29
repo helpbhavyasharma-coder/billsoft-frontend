@@ -1,15 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
-import { Package, Search } from 'lucide-react';
+import { History, Package, RefreshCw, Search, X } from 'lucide-react';
 
 const qty = (n) => parseFloat(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 3 });
+const movementLabels = {
+  purchase_in: 'Purchased',
+  sale_out: 'Sold',
+  damage: 'Damaged',
+  expiry: 'Expired',
+  adjustment_in: 'Adjustment In',
+  adjustment_out: 'Adjustment Out',
+};
 
 export default function Stock() {
   const [stock, setStock] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [movements, setMovements] = useState([]);
+  const [loadingMovements, setLoadingMovements] = useState(false);
 
   useEffect(() => { fetchStock(); }, []);
 
@@ -22,6 +33,20 @@ export default function Stock() {
       toast.error('Failed to load stock.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchMovements = async (item) => {
+    setSelectedProduct(item);
+    setMovements([]);
+    setLoadingMovements(true);
+    try {
+      const { data } = await api.get(`/stock/movements/${item.id}`);
+      if (data.success) setMovements(data.movements || []);
+    } catch {
+      toast.error('Failed to load stock history.');
+    } finally {
+      setLoadingMovements(false);
     }
   };
 
@@ -38,11 +63,34 @@ export default function Stock() {
     return acc;
   }, {});
 
+  const totals = filtered.reduce((acc, item) => {
+    acc.purchased += parseFloat(item.purchased_qty || 0);
+    acc.sold += parseFloat(item.sold_qty || 0);
+    acc.damaged += parseFloat(item.damaged_qty || 0);
+    acc.expired += parseFloat(item.expired_qty || 0);
+    acc.adjustment += parseFloat(item.adjustment_qty || 0);
+    acc.current += parseFloat(item.current_stock || 0);
+    return acc;
+  }, { purchased: 0, sold: 0, damaged: 0, expired: 0, adjustment: 0, current: 0 });
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Stock Management</h1>
-        <div className="text-sm" style={{ color: 'var(--text-3)' }}>{filtered.length} products</div>
+        <div className="flex items-center gap-3">
+          <div className="text-sm" style={{ color: 'var(--text-3)' }}>{filtered.length} products</div>
+          <button onClick={fetchStock} className="btn-secondary text-sm flex items-center gap-2">
+            <RefreshCw className="w-4 h-4" /> Sync
+          </button>
+        </div>
+      </div>
+
+      <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="card py-3"><p className="text-xs" style={{ color: 'var(--text-3)' }}>Total Purchased</p><p className="text-lg font-bold text-green-600">{qty(totals.purchased)}</p></div>
+        <div className="card py-3"><p className="text-xs" style={{ color: 'var(--text-3)' }}>Total Sold</p><p className="text-lg font-bold text-blue-600">{qty(totals.sold)}</p></div>
+        <div className="card py-3"><p className="text-xs" style={{ color: 'var(--text-3)' }}>Damage / Expiry</p><p className="text-lg font-bold text-orange-600">{qty(totals.damaged + totals.expired)}</p></div>
+        <div className="card py-3"><p className="text-xs" style={{ color: 'var(--text-3)' }}>Adjustment</p><p className={`text-lg font-bold ${totals.adjustment < 0 ? 'text-red-500' : 'text-green-600'}`}>{qty(totals.adjustment)}</p></div>
+        <div className="card py-3"><p className="text-xs" style={{ color: 'var(--text-3)' }}>Available Stock</p><p className={`text-lg font-bold ${totals.current < 0 ? 'text-red-500' : 'text-green-600'}`}>{qty(totals.current)}</p></div>
       </div>
 
       <div className="card grid md:grid-cols-2 gap-3 py-3">
@@ -75,6 +123,7 @@ export default function Stock() {
                     <th className="table-header text-right">Damaged</th>
                     <th className="table-header text-right">Expired</th>
                     <th className="table-header text-right">Available Stock</th>
+                    <th className="table-header text-right">History</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -87,6 +136,11 @@ export default function Stock() {
                       <td className="table-cell text-right text-orange-600 font-medium">{qty(item.damaged_qty)}</td>
                       <td className="table-cell text-right text-red-600 font-medium">{qty(item.expired_qty)}</td>
                       <td className={`table-cell text-right font-bold ${parseFloat(item.current_stock || 0) <= 0 ? 'text-red-500' : 'text-green-600'}`}>{qty(item.current_stock)}</td>
+                      <td className="table-cell text-right">
+                        <button onClick={() => fetchMovements(item)} className="btn-secondary text-xs inline-flex items-center gap-1.5">
+                          <History className="w-3.5 h-3.5" /> View
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -94,6 +148,57 @@ export default function Stock() {
             </div>
           </div>
         ))
+      )}
+
+      {selectedProduct && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="card p-0 w-full max-w-4xl max-h-[85vh] overflow-hidden">
+            <div className="p-4 flex items-center justify-between gap-3" style={{ borderBottom: '1px solid var(--border)' }}>
+              <div>
+                <h2 className="font-bold" style={{ color: 'var(--text)' }}>{selectedProduct.name} Stock History</h2>
+                <p className="text-xs" style={{ color: 'var(--text-3)' }}>Purchased, sold, damaged, expired aur manual adjustment entries.</p>
+              </div>
+              <button onClick={() => setSelectedProduct(null)} className="p-2 rounded-lg hover:bg-gray-100" title="Close">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {loadingMovements ? (
+              <div className="p-10 text-center" style={{ color: 'var(--text-3)' }}>Loading history...</div>
+            ) : movements.length === 0 ? (
+              <div className="p-10 text-center" style={{ color: 'var(--text-3)' }}>No movement found for this product.</div>
+            ) : (
+              <div className="overflow-auto max-h-[65vh]">
+                <table className="w-full">
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                      <th className="table-header text-left">Date</th>
+                      <th className="table-header text-left">Type</th>
+                      <th className="table-header text-right">In</th>
+                      <th className="table-header text-right">Out</th>
+                      <th className="table-header text-left">Reference</th>
+                      <th className="table-header text-left">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {movements.map((m) => {
+                      const isIn = ['purchase_in', 'adjustment_in'].includes(m.movement_type);
+                      return (
+                        <tr key={m.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td className="table-cell">{String(m.movement_date || '').slice(0, 10)}</td>
+                          <td className="table-cell">{movementLabels[m.movement_type] || m.movement_type}</td>
+                          <td className="table-cell text-right text-green-600 font-medium">{isIn ? qty(m.qty) : '-'}</td>
+                          <td className="table-cell text-right text-red-600 font-medium">{isIn ? '-' : qty(m.qty)}</td>
+                          <td className="table-cell capitalize">{m.reference_type || '-'}</td>
+                          <td className="table-cell">{m.notes || '-'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
