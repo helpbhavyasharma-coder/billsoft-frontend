@@ -40,6 +40,7 @@ const emptyForm = () => ({
   payment_status: 'unpaid',
   amount_paid: '',
   payment_mode: 'cash',
+  round_off: 0,
   notes: '',
   items: [{ ...emptyItem }],
 });
@@ -56,6 +57,11 @@ export default function Purchases() {
   const [form, setForm] = useState(emptyForm);
 
   useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    if (!showForm || form.payment_status !== 'paid') return;
+    const nextPaid = totals.grand.toFixed(2);
+    if (String(form.amount_paid) !== nextPaid) setForm((prev) => ({ ...prev, amount_paid: nextPaid }));
+  }, [showForm, form.payment_status, form.amount_paid, totals.grand]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -78,7 +84,7 @@ export default function Purchases() {
   const suppliers = parties.filter((p) => ['supplier', 'both'].includes(p.party_type));
 
   const totals = useMemo(() => {
-    return form.items.reduce((sum, item) => {
+    const itemTotals = form.items.reduce((sum, item) => {
       const accepted = Math.max(
         parseFloat(item.qty || 0) -
         parseFloat(item.short_qty || 0) -
@@ -90,7 +96,9 @@ export default function Purchases() {
       const gst = taxable * parseFloat(item.gst_rate || 0) / 100;
       return { taxable: sum.taxable + taxable, gst: sum.gst + gst, total: sum.total + taxable + gst };
     }, { taxable: 0, gst: 0, total: 0 });
-  }, [form.items]);
+    const roundOff = parseFloat(form.round_off || 0);
+    return { ...itemTotals, round_off: roundOff, grand: itemTotals.total + roundOff };
+  }, [form.items, form.round_off]);
 
   const resetForm = () => {
     setEditingId(null);
@@ -114,7 +122,7 @@ export default function Purchases() {
           return next;
         }
         if (key === 'rate') {
-          return { ...item, rate: value, rate_including_gst: gstInclusiveFromBase(value, item.gst_rate).toFixed(2) };
+          return { ...item, rate: value };
         }
         return { ...item, [key]: value };
       }),
@@ -123,6 +131,7 @@ export default function Purchases() {
 
   const addItem = () => setForm((prev) => ({ ...prev, items: [...prev.items, { ...emptyItem }] }));
   const removeItem = (idx) => setForm((prev) => ({ ...prev, items: prev.items.filter((_, i) => i !== idx) }));
+  const autoRoundOff = () => setForm((prev) => ({ ...prev, round_off: (Math.round(totals.total) - totals.total).toFixed(2) }));
 
   const selectProduct = (idx, productId) => {
     const product = products.find((p) => String(p.id) === String(productId));
@@ -181,6 +190,7 @@ export default function Purchases() {
         payment_status: data.purchase.payment_status || 'unpaid',
         amount_paid: data.purchase.amount_paid || '',
         payment_mode: data.purchase.payment_mode || 'cash',
+        round_off: data.purchase.round_off || 0,
         notes: data.purchase.notes || '',
         items: data.purchase.items?.length ? data.purchase.items.map((item) => ({
           product_id: item.product_id || '',
@@ -189,7 +199,7 @@ export default function Purchases() {
           damaged_qty: item.damaged_qty || 0,
           expired_qty: item.expired_qty || 0,
           rate: item.rate || 0,
-          rate_including_gst: gstInclusiveFromBase(item.rate || 0, item.gst_rate || 0).toFixed(2),
+          rate_including_gst: item.rate_including_gst || gstInclusiveFromBase(item.rate || 0, item.gst_rate || 0).toFixed(2),
           gst_rate: item.gst_rate || 0,
           expiry_date: item.expiry_date ? String(item.expiry_date).slice(0, 10) : '',
           notes: item.notes || '',
@@ -251,7 +261,7 @@ export default function Purchases() {
             </div>
             <div>
               <label className="label">Payment</label>
-              <select className="input-field" value={form.payment_status} onChange={(e) => setForm((p) => ({ ...p, payment_status: e.target.value, amount_paid: e.target.value === 'paid' ? totals.total.toFixed(2) : e.target.value === 'unpaid' ? '' : p.amount_paid }))}>
+              <select className="input-field" value={form.payment_status} onChange={(e) => setForm((p) => ({ ...p, payment_status: e.target.value, amount_paid: e.target.value === 'paid' ? totals.grand.toFixed(2) : e.target.value === 'unpaid' ? '' : p.amount_paid }))}>
                 <option value="unpaid">Unpaid</option>
                 <option value="partial">Partial</option>
                 <option value="paid">Paid</option>
@@ -266,7 +276,7 @@ export default function Purchases() {
                 step="0.01"
                 value={form.amount_paid}
                 disabled={form.payment_status === 'unpaid'}
-                onChange={(e) => setForm((p) => ({ ...p, amount_paid: e.target.value, payment_status: parseFloat(e.target.value || 0) >= totals.total ? 'paid' : parseFloat(e.target.value || 0) > 0 ? 'partial' : 'unpaid' }))}
+                onChange={(e) => setForm((p) => ({ ...p, amount_paid: e.target.value, payment_status: parseFloat(e.target.value || 0) >= totals.grand ? 'paid' : parseFloat(e.target.value || 0) > 0 ? 'partial' : 'unpaid' }))}
               />
             </div>
             <div>
@@ -327,6 +337,7 @@ export default function Purchases() {
                         step="0.01"
                         className="input-field text-right"
                         value={item.rate}
+                        readOnly
                         onChange={(e) => updateItem(idx, 'rate', e.target.value)}
                       />
                     </td>
@@ -351,7 +362,18 @@ export default function Purchases() {
             <button type="button" onClick={addItem} className="btn-secondary text-sm">Add Item</button>
             <div className="text-right text-sm" style={{ color: 'var(--text)' }}>
               <p>Taxable: ₹{fmt(totals.taxable)} | GST: ₹{fmt(totals.gst)}</p>
-              <p className="font-bold text-base">Grand Total: ₹{fmt(totals.total)}</p>
+              <div className="flex items-center justify-end gap-2 mt-2">
+                <span>Round Off</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="input-field text-right w-28"
+                  value={form.round_off}
+                  onChange={(e) => setForm((p) => ({ ...p, round_off: e.target.value }))}
+                />
+                <button type="button" onClick={autoRoundOff} className="btn-secondary text-xs px-3 py-2">Auto</button>
+              </div>
+              <p className="font-bold text-base">Grand Total: ₹{fmt(totals.grand)}</p>
             </div>
           </div>
 
@@ -453,6 +475,7 @@ export default function Purchases() {
             </div>
             <div className="mt-4 text-right" style={{ color: 'var(--text)' }}>
               <p>Taxable: ₹{fmt(viewing.subtotal)} | GST: ₹{fmt(viewing.total_gst)}</p>
+              <p>Round Off: ₹{fmt(viewing.round_off)}</p>
               <p className="text-lg font-bold">Grand Total: ₹{fmt(viewing.grand_total)}</p>
             </div>
           </div>
