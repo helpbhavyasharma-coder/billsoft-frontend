@@ -28,6 +28,18 @@ const calcItem = (item, isInterstate) => {
   };
 };
 
+const productGstRate = (product) => (
+  product.gst_rate === undefined || product.gst_rate === null || product.gst_rate === ''
+    ? 5
+    : parseFloat(product.gst_rate)
+);
+
+const productRate = (product) => (
+  product.default_rate === undefined || product.default_rate === null || product.default_rate === ''
+    ? ''
+    : product.default_rate
+);
+
 export default function InvoiceForm() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -153,7 +165,8 @@ export default function InvoiceForm() {
   };
 
   const selectProduct = (idx, product) => {
-    const hasFixedRate = product.default_rate && parseFloat(product.default_rate) > 0;
+    const defaultRate = productRate(product);
+    const hasFixedRate = defaultRate !== '' && parseFloat(defaultRate) > 0;
     const updated = [...items];
     updated[idx] = calcItem({
       ...updated[idx],
@@ -161,8 +174,8 @@ export default function InvoiceForm() {
       description: product.name,
       hsn_code: product.hsn_code || '',
       unit: product.unit || 'Pcs',
-      rate: hasFixedRate ? product.default_rate : '',
-      gst_rate: product.gst_rate || 5,
+      rate: hasFixedRate ? defaultRate : updated[idx].rate,
+      gst_rate: productGstRate(product),
       rate_is_fixed: hasFixedRate,
     }, isInterstate);
     setItems(updated);
@@ -170,7 +183,17 @@ export default function InvoiceForm() {
     setProductSearch(prev => ({ ...prev, [idx]: product.name }));
   };
 
+  const applyExactProductMatch = (idx, value) => {
+    const clean = String(value || '').trim().toLowerCase();
+    if (!clean) return false;
+    const product = products.find((p) => String(p.name || '').trim().toLowerCase() === clean);
+    if (!product) return false;
+    selectProduct(idx, product);
+    return true;
+  };
+
   const updateItem = (idx, field, value) => {
+    if (field === 'description' && applyExactProductMatch(idx, value)) return;
     const updated = [...items];
     updated[idx] = calcItem({ ...updated[idx], [field]: value }, isInterstate);
     setItems(updated);
@@ -400,6 +423,7 @@ export default function InvoiceForm() {
                         updateItem(idx, 'description', e.target.value);
                         setShowProductDropdown(prev => ({ ...prev, [idx]: true }));
                       }}
+                      onBlur={(e) => applyExactProductMatch(idx, e.target.value)}
                       onFocus={() => setShowProductDropdown(prev => ({ ...prev, [idx]: true }))}
                     />
                     {showProductDropdown[idx] && (
@@ -412,7 +436,10 @@ export default function InvoiceForm() {
                             <button
                               key={p.id}
                               type="button"
-                              onClick={() => selectProduct(idx, p)}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                selectProduct(idx, p);
+                              }}
                               className="w-full text-left px-3 py-1.5 text-xs"
                               style={{color:'var(--text)'}}
                               onMouseEnter={e => e.currentTarget.style.backgroundColor='var(--bg-hover)'}
