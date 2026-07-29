@@ -112,7 +112,7 @@ export default function Dashboard() {
             </div>
           </div>
           <p className="text-xl font-bold text-red-600">₹{fmt(data?.outstanding?.total)}</p>
-          <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>{data?.outstanding?.count || 0} unpaid</p>
+          <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>{data?.outstanding?.count || 0} parties</p>
         </div>
 
         <div className="card">
