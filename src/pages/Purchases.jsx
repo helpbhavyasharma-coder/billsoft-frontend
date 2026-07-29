@@ -13,9 +13,24 @@ const emptyItem = {
   damaged_qty: 0,
   expired_qty: 0,
   rate: 0,
+  rate_including_gst: 0,
   gst_rate: 5,
   expiry_date: '',
   notes: '',
+};
+
+const baseFromGstInclusive = (inclusiveRate, gstRate) => {
+  const gross = parseFloat(inclusiveRate || 0);
+  const gst = parseFloat(gstRate || 0);
+  if (!gross) return 0;
+  return gross / (1 + gst / 100);
+};
+
+const gstInclusiveFromBase = (baseRate, gstRate) => {
+  const base = parseFloat(baseRate || 0);
+  const gst = parseFloat(gstRate || 0);
+  if (!base) return 0;
+  return base * (1 + gst / 100);
 };
 
 const emptyForm = () => ({
@@ -84,7 +99,26 @@ export default function Purchases() {
   };
 
   const updateItem = (idx, key, value) => {
-    setForm((prev) => ({ ...prev, items: prev.items.map((item, i) => i === idx ? { ...item, [key]: value } : item) }));
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.map((item, i) => {
+        if (i !== idx) return item;
+        if (key === 'rate_including_gst') {
+          return { ...item, rate_including_gst: value, rate: baseFromGstInclusive(value, item.gst_rate).toFixed(2) };
+        }
+        if (key === 'gst_rate') {
+          const next = { ...item, gst_rate: value };
+          if (parseFloat(item.rate_including_gst || 0) > 0) {
+            next.rate = baseFromGstInclusive(item.rate_including_gst, value).toFixed(2);
+          }
+          return next;
+        }
+        if (key === 'rate') {
+          return { ...item, rate: value, rate_including_gst: gstInclusiveFromBase(value, item.gst_rate).toFixed(2) };
+        }
+        return { ...item, [key]: value };
+      }),
+    }));
   };
 
   const addItem = () => setForm((prev) => ({ ...prev, items: [...prev.items, { ...emptyItem }] }));
@@ -92,13 +126,16 @@ export default function Purchases() {
 
   const selectProduct = (idx, productId) => {
     const product = products.find((p) => String(p.id) === String(productId));
+    const rate = parseFloat(product?.default_rate || 0);
+    const gst = parseFloat(product?.gst_rate || 5);
     setForm((prev) => ({
       ...prev,
       items: prev.items.map((item, i) => i === idx ? {
         ...item,
         product_id: productId,
-        rate: product?.default_rate || 0,
-        gst_rate: product?.gst_rate || 5,
+        rate,
+        gst_rate: gst,
+        rate_including_gst: gstInclusiveFromBase(rate, gst).toFixed(2),
       } : item),
     }));
   };
@@ -152,6 +189,7 @@ export default function Purchases() {
           damaged_qty: item.damaged_qty || 0,
           expired_qty: item.expired_qty || 0,
           rate: item.rate || 0,
+          rate_including_gst: gstInclusiveFromBase(item.rate || 0, item.gst_rate || 0).toFixed(2),
           gst_rate: item.gst_rate || 0,
           expiry_date: item.expiry_date ? String(item.expiry_date).slice(0, 10) : '',
           notes: item.notes || '',
@@ -243,7 +281,7 @@ export default function Purchases() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1000px]">
+            <table className="w-full min-w-[1120px]">
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                   <th className="table-header text-left">Product</th>
@@ -251,7 +289,8 @@ export default function Purchases() {
                   <th className="table-header text-right">Short</th>
                   <th className="table-header text-right">Damage</th>
                   <th className="table-header text-right">Expiry</th>
-                  <th className="table-header text-right">Rate</th>
+                  <th className="table-header text-right">GST Incl. Rate</th>
+                  <th className="table-header text-right">Base Rate</th>
                   <th className="table-header text-right">GST %</th>
                   <th className="table-header text-left">Expiry Date</th>
                   <th className="table-header text-center">Action</th>
@@ -266,11 +305,34 @@ export default function Purchases() {
                         {products.map((p) => <option key={p.id} value={p.id}>{p.name} {p.category ? `(${p.category})` : ''}</option>)}
                       </select>
                     </td>
-                    {['qty', 'short_qty', 'damaged_qty', 'expired_qty', 'rate', 'gst_rate'].map((key) => (
+                    {['qty', 'short_qty', 'damaged_qty', 'expired_qty'].map((key) => (
                       <td key={key} className="table-cell">
                         <input type="number" min="0" step="0.001" className="input-field text-right" value={item[key]} onChange={(e) => updateItem(idx, key, e.target.value)} />
                       </td>
                     ))}
+                    <td className="table-cell">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="input-field text-right"
+                        value={item.rate_including_gst}
+                        onChange={(e) => updateItem(idx, 'rate_including_gst', e.target.value)}
+                      />
+                    </td>
+                    <td className="table-cell">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="input-field text-right"
+                        value={item.rate}
+                        onChange={(e) => updateItem(idx, 'rate', e.target.value)}
+                      />
+                    </td>
+                    <td className="table-cell">
+                      <input type="number" min="0" step="0.01" className="input-field text-right" value={item.gst_rate} onChange={(e) => updateItem(idx, 'gst_rate', e.target.value)} />
+                    </td>
                     <td className="table-cell">
                       <input type="date" className="input-field" value={item.expiry_date} onChange={(e) => updateItem(idx, 'expiry_date', e.target.value)} />
                     </td>
