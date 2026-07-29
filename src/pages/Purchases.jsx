@@ -3,7 +3,7 @@ import api from '../api/axios';
 import toast from 'react-hot-toast';
 import { Eye, Pencil, Plus, ShoppingCart, Trash2, X } from 'lucide-react';
 
-const fmt = (n) => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+const fmt = (n) => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const today = new Date().toISOString().slice(0, 10);
 
 const emptyItem = {
@@ -87,9 +87,12 @@ export default function Purchases() {
         parseFloat(item.expired_qty || 0),
         0
       );
-      const taxable = accepted * parseFloat(item.rate || 0);
-      const gst = taxable * parseFloat(item.gst_rate || 0) / 100;
-      return { taxable: sum.taxable + taxable, gst: sum.gst + gst, total: sum.total + taxable + gst };
+      const gstRate = parseFloat(item.gst_rate || 0);
+      const inclusiveRate = parseFloat(item.rate_including_gst || 0);
+      const gross = inclusiveRate > 0 ? accepted * inclusiveRate : accepted * parseFloat(item.rate || 0) * (1 + gstRate / 100);
+      const taxable = gstRate ? gross / (1 + gstRate / 100) : gross;
+      const gst = gross - taxable;
+      return { taxable: sum.taxable + taxable, gst: sum.gst + gst, total: sum.total + gross };
     }, { taxable: 0, gst: 0, total: 0 });
     const roundOff = parseFloat(form.round_off || 0);
     return { ...itemTotals, round_off: roundOff, grand: itemTotals.total + roundOff };
@@ -292,7 +295,19 @@ export default function Purchases() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1120px]">
+            <table className="w-full min-w-[980px] table-fixed">
+              <colgroup>
+                <col className="w-[165px]" />
+                <col className="w-[86px]" />
+                <col className="w-[86px]" />
+                <col className="w-[86px]" />
+                <col className="w-[86px]" />
+                <col className="w-[105px]" />
+                <col className="w-[95px]" />
+                <col className="w-[78px]" />
+                <col className="w-[145px]" />
+                <col className="w-[48px]" />
+              </colgroup>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                   <th className="table-header text-left">Product</th>
@@ -300,25 +315,25 @@ export default function Purchases() {
                   <th className="table-header text-right">Short</th>
                   <th className="table-header text-right">Damage</th>
                   <th className="table-header text-right">Expiry</th>
-                  <th className="table-header text-right">GST Incl. Rate</th>
-                  <th className="table-header text-right">Base Rate</th>
+                  <th className="table-header text-right">Incl. Rate</th>
+                  <th className="table-header text-right">Base</th>
                   <th className="table-header text-right">GST %</th>
-                  <th className="table-header text-left">Expiry Date</th>
-                  <th className="table-header text-center">Action</th>
+                  <th className="table-header text-left">Exp. Date</th>
+                  <th className="table-header text-center"></th>
                 </tr>
               </thead>
               <tbody>
                 {form.items.map((item, idx) => (
                   <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td className="table-cell">
-                      <select className="input-field" value={item.product_id} onChange={(e) => selectProduct(idx, e.target.value)}>
+                      <select className="input-field w-full min-w-0 px-2" value={item.product_id} onChange={(e) => selectProduct(idx, e.target.value)}>
                         <option value="">Select product</option>
                         {products.map((p) => <option key={p.id} value={p.id}>{p.name} {p.category ? `(${p.category})` : ''}</option>)}
                       </select>
                     </td>
                     {['qty', 'short_qty', 'damaged_qty', 'expired_qty'].map((key) => (
                       <td key={key} className="table-cell">
-                        <input type="number" min="0" step="0.001" className="input-field text-right" value={item[key]} onChange={(e) => updateItem(idx, key, e.target.value)} />
+                        <input type="number" min="0" step="0.001" className="input-field text-right w-full min-w-0 px-2" value={item[key]} onChange={(e) => updateItem(idx, key, e.target.value)} />
                       </td>
                     ))}
                     <td className="table-cell">
@@ -326,7 +341,7 @@ export default function Purchases() {
                         type="number"
                         min="0"
                         step="0.01"
-                        className="input-field text-right"
+                        className="input-field text-right w-full min-w-0 px-2"
                         value={item.rate_including_gst}
                         onChange={(e) => updateItem(idx, 'rate_including_gst', e.target.value)}
                       />
@@ -336,17 +351,17 @@ export default function Purchases() {
                         type="number"
                         min="0"
                         step="0.01"
-                        className="input-field text-right"
+                        className="input-field text-right w-full min-w-0 px-2"
                         value={item.rate}
                         readOnly
                         onChange={(e) => updateItem(idx, 'rate', e.target.value)}
                       />
                     </td>
                     <td className="table-cell">
-                      <input type="number" min="0" step="0.01" className="input-field text-right" value={item.gst_rate} onChange={(e) => updateItem(idx, 'gst_rate', e.target.value)} />
+                      <input type="number" min="0" step="0.01" className="input-field text-right w-full min-w-0 px-2" value={item.gst_rate} onChange={(e) => updateItem(idx, 'gst_rate', e.target.value)} />
                     </td>
                     <td className="table-cell">
-                      <input type="date" className="input-field" value={item.expiry_date} onChange={(e) => updateItem(idx, 'expiry_date', e.target.value)} />
+                      <input type="date" className="input-field w-full min-w-0 px-2" value={item.expiry_date} onChange={(e) => updateItem(idx, 'expiry_date', e.target.value)} />
                     </td>
                     <td className="table-cell text-center">
                       <button type="button" onClick={() => removeItem(idx)} disabled={form.items.length === 1} style={{ color: 'var(--text-3)' }}>
