@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { Building2, Upload, X } from 'lucide-react';
 import { INDIAN_STATES } from '../data/states';
 import { BUSINESS_TYPES } from '../data/businessTypes';
+import { isValidGstinOrNA, normalizeGstin } from '../utils/gstin';
 
 export default function CompanySetup() {
   const { refreshCompany, company } = useAuth();
@@ -45,11 +46,12 @@ export default function CompanySetup() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.company_name.trim()) { toast.error('Company name is required'); return; }
+    if (!isValidGstinOrNA(form.gst_no)) { toast.error('Enter a valid GSTIN or leave it blank.'); return; }
     setLoading(true);
 
     try {
       const formData = new FormData();
-      Object.entries(form).forEach(([k, v]) => { if (v !== null && v !== undefined) formData.append(k, v); });
+      Object.entries({ ...form, gst_no: normalizeGstin(form.gst_no) }).forEach(([k, v]) => { if (v !== null && v !== undefined) formData.append(k, v); });
       if (logoFile) formData.append('logo', logoFile);
 
       const { data } = await api.post('/company', formData, {

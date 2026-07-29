@@ -98,10 +98,10 @@ export default function Products() {
       {/* Search */}
       <div className="card py-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="input-prefix absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            className="input-field pl-9"
+            className="input-field input-with-icon"
             placeholder="Search products..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}

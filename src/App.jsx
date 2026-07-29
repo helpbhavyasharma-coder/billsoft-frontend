@@ -12,10 +12,15 @@ import InvoiceForm from './pages/InvoiceForm';
 import InvoiceDetail from './pages/InvoiceDetail';
 import Parties from './pages/Parties';
 import Products from './pages/Products';
+import Purchases from './pages/Purchases';
+import Stock from './pages/Stock';
+import Ledgers from './pages/Ledgers';
 import Outstanding from './pages/Outstanding';
 import PartyLedger from './pages/PartyLedger';
 import AdminPanel from './pages/AdminPanel';
+import AdminUserDetail from './pages/AdminUserDetail';
 import AccountantReport from './pages/AccountantReport';
+import Settings from './pages/Settings';
 
 /** Same spinner while restoring session from token (avoid login form flash). */
 function AuthBootSpinner() {
@@ -48,13 +53,28 @@ function CompanyRoute({ children }) {
     );
   }
   if (!user) return <Navigate to="/login" replace />;
+  if (user.is_admin) return <Navigate to="/admin" replace />;
   if (!company) return <Navigate to="/company/setup" replace />;
   return children;
 }
 
+function AdminRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+  if (!user) return <Navigate to="/login" replace />;
+  return user.is_admin ? children : <Navigate to="/dashboard" replace />;
+}
+
 /** After login/register: only send to dashboard when company exists; otherwise first-time setup. */
 function PostAuthRedirect() {
-  const { company } = useAuth();
+  const { user, company } = useAuth();
+  if (user?.is_admin) return <Navigate to="/admin" replace />;
   return <Navigate to={company ? '/dashboard' : '/company/setup'} replace />;
 }
 
@@ -114,6 +134,21 @@ function AppRoutes() {
           <Layout><Products /></Layout>
         </CompanyRoute>
       } />
+      <Route path="/purchases" element={
+        <CompanyRoute>
+          <Layout><Purchases /></Layout>
+        </CompanyRoute>
+      } />
+      <Route path="/stock" element={
+        <CompanyRoute>
+          <Layout><Stock /></Layout>
+        </CompanyRoute>
+      } />
+      <Route path="/ledgers" element={
+        <CompanyRoute>
+          <Layout><Ledgers /></Layout>
+        </CompanyRoute>
+      } />
       <Route path="/outstanding" element={
         <CompanyRoute><Layout><Outstanding /></Layout></CompanyRoute>
       } />
@@ -121,7 +156,10 @@ function AppRoutes() {
         <CompanyRoute><Layout><PartyLedger /></Layout></CompanyRoute>
       } />
       <Route path="/admin" element={
-        <PrivateRoute><Layout><AdminPanel /></Layout></PrivateRoute>
+        <AdminRoute><Layout><AdminPanel /></Layout></AdminRoute>
+      } />
+      <Route path="/admin/users/:id" element={
+        <AdminRoute><Layout><AdminUserDetail /></Layout></AdminRoute>
       } />
       <Route path="/reports/accountant" element={
         <CompanyRoute><Layout><AccountantReport /></Layout></CompanyRoute>
@@ -133,12 +171,7 @@ function AppRoutes() {
       } />
       <Route path="/settings" element={
         <CompanyRoute>
-          <Layout>
-            <div className="card">
-              <h1 className="text-xl font-bold text-gray-900 mb-2">Settings</h1>
-              <p className="text-gray-500">More settings coming soon.</p>
-            </div>
-          </Layout>
+          <Layout><Settings /></Layout>
         </CompanyRoute>
       } />
 

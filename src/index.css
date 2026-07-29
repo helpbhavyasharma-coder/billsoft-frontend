@@ -110,6 +110,19 @@ body {
 }
 .input-field::placeholder { color: var(--text-ph) !important; }
 
+.input-with-icon {
+  padding-left: 2.5rem !important;
+}
+
+.input-with-currency {
+  padding-left: 2.75rem !important;
+}
+
+.input-prefix {
+  pointer-events: none;
+  z-index: 1;
+}
+
 select.input-field {
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
@@ -167,6 +180,9 @@ textarea.input-field { resize: vertical; min-height: 80px; }
 /* ── Animations ── */
 @keyframes spin { to { transform: rotate(360deg); } }
 .animate-spin { animation: spin 1s linear infinite; }
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out;
+}
 
 /* ── Status Badges (theme-aware) ── */
 .badge-unpaid  { background-color: var(--badge-unpaid-bg)  !important; color: var(--badge-unpaid-text)  !important; }
@@ -215,3 +231,137 @@ textarea.input-field { resize: vertical; min-height: 80px; }
 .divide-gray-100 > * + * { border-color: var(--border) !important; }
 .dark\:divide-gray-800 > * + * { border-color: var(--border) !important; }
 .border-gray-100 { border-color: var(--border) !important; }
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 6mm;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    overflow: visible !important;
+    height: auto !important;
+    width: auto !important;
+  }
+
+  body.printing-report * {
+    visibility: hidden !important;
+  }
+
+  body.printing-report .print-area,
+  body.printing-report .print-area * {
+    visibility: visible !important;
+  }
+
+  body.printing-report .print-area {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    display: block !important;
+    width: 100vw !important;
+    max-width: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  body.printing-report .print-area .hidden {
+    display: block !important;
+  }
+
+  body.printing-report .print-area .md\:block {
+    display: block !important;
+  }
+
+  body.printing-report .print-area .md\:hidden {
+    display: none !important;
+  }
+
+  body.printing-report .print-area .grid {
+    display: grid !important;
+  }
+
+  body.printing-report .print-area .md\:grid-cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  body.printing-report .print-area .overflow-hidden,
+  body.printing-report .print-area .overflow-x-auto {
+    overflow: visible !important;
+  }
+
+  body.printing-report .print-area .card {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 6px !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    table-layout: fixed !important;
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+
+  th,
+  td {
+    font-size: 8px !important;
+    line-height: 1.15 !important;
+    padding: 3px 4px !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+  }
+
+  body.printing-report .print-area h1 {
+    font-size: 14px !important;
+    line-height: 1.2 !important;
+  }
+
+  body.printing-report .print-area p,
+  body.printing-report .print-area span,
+  body.printing-report .print-area a {
+    font-size: 8px !important;
+    line-height: 1.15 !important;
+  }
+
+  body.printing-report .print-area .text-2xl,
+  body.printing-report .print-area .text-xl,
+  body.printing-report .print-area .text-lg,
+  body.printing-report .print-area .text-base {
+    font-size: 10px !important;
+    line-height: 1.15 !important;
+  }
+
+  body.printing-report .print-area .space-y-5 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 6px !important;
+  }
+
+  body.printing-report .print-area .gap-3 {
+    gap: 6px !important;
+  }
+}

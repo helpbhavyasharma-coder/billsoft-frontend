@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-/** Live API (Railway). Same as `.env.production` — used whenever this is a production build. */
-const DEFAULT_PUBLIC_API = 'https://web-production-a692a.up.railway.app';
+/** PHP/MySQL API. Override with VITE_API_URL when deploying to another domain. */
+const DEFAULT_PUBLIC_API = '/BhaviSoft/billing-software/php-backend';
 
 const runtimeOrigin =
   typeof window !== 'undefined' && window.__BILLING_API_ORIGIN__
@@ -16,7 +16,11 @@ const apiOrigin =
   envOrigin ||
   (import.meta.env.DEV ? '' : DEFAULT_PUBLIC_API);
 
-const BASE_URL = apiOrigin ? `${apiOrigin.replace(/\/$/, '')}/api` : '/api';
+const normalizedOrigin = apiOrigin.replace(/\/$/, '');
+const BASE_URL = normalizedOrigin
+  ? (normalizedOrigin.endsWith('/api') ? normalizedOrigin : `${normalizedOrigin}/api`)
+  : '/api';
+export const API_BASE_URL = BASE_URL;
 
 const api = axios.create({
   baseURL: BASE_URL,

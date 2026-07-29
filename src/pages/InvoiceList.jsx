@@ -4,6 +4,8 @@ import api from '../api/axios';
 import toast from 'react-hot-toast';
 import { Plus, Search, FileDown, Eye, Edit, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { buildInvoiceFileName, downloadInvoicePdf, generateInvoicePdfBlob } from '../utils/invoicePdf';
+import { useAuth } from '../context/AuthContext';
 
 const statusColors = {
   unpaid: 'bg-red-100 text-red-700',
@@ -13,12 +15,15 @@ const statusColors = {
 
 export default function InvoiceList() {
   const navigate = useNavigate();
+  const { company } = useAuth();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [pagination, setPagination] = useState({ total: 0, page: 1, pages: 1 });
   const [downloading, setDownloading] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkDownloading, setBulkDownloading] = useState(false);
 
   useEffect(() => {
     fetchInvoices();
@@ -37,6 +42,7 @@ export default function InvoiceList() {
       if (data.success) {
         setInvoices(data.invoices);
         setPagination(data.pagination);
+        setSelectedIds([]);
       }
     } catch {
       toast.error('Failed to load invoices.');
@@ -62,22 +68,10 @@ export default function InvoiceList() {
   const downloadPDF = async (inv) => {
     setDownloading(inv.id);
     try {
-      const response = await api.get(`/pdf/invoice/${inv.id}`, { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      const cleanInvoiceNo = inv.invoice_no.replace(/\//g, ' ');
-      const cleanPartyName = (inv.party_name || '').replace(/[^a-zA-Z0-9\s]/g, '').trim();
-      const cleanAmount = parseFloat(inv.grand_total || 0).toLocaleString('en-IN', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2,
-      });
-      const fileName = `${cleanInvoiceNo} ${cleanPartyName} ${cleanAmount}.pdf`;
-      link.setAttribute('download', fileName);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      // The list row has no line items — fetch the full invoice first.
+      const { data } = await api.get(`/invoices/${inv.id}`);
+      if (!data.success) throw new Error('load failed');
+      await downloadInvoicePdf({ company, invoice: data.invoice, items: data.items });
     } catch {
       toast.error('Failed to generate PDF.');
     } finally {
@@ -85,23 +79,71 @@ export default function InvoiceList() {
     }
   };
 
+  const selectedInvoices = invoices.filter((inv) => selectedIds.includes(inv.id));
+  const allCurrentPageSelected = invoices.length > 0 && selectedIds.length === invoices.length;
+
+  const toggleInvoice = (id) => {
+    setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  };
+
+  const toggleCurrentPage = () => {
+    setSelectedIds(allCurrentPageSelected ? [] : invoices.map((inv) => inv.id));
+  };
+
+  const downloadSelectedPdfs = async () => {
+    if (selectedInvoices.length === 0) return toast.error('Select invoices first.');
+    setBulkDownloading(true);
+    try {
+      for (let i = 0; i < selectedInvoices.length; i += 1) {
+        const inv = selectedInvoices[i];
+        toast.loading(`Preparing ${i + 1}/${selectedInvoices.length}: ${inv.invoice_no}`, { id: 'bulk-pdf' });
+        const { data } = await api.get(`/invoices/${inv.id}`);
+        if (!data.success) throw new Error(`Invoice ${inv.invoice_no} load failed`);
+        const blob = await generateInvoicePdfBlob({ company, invoice: data.invoice, items: data.items });
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = buildInvoiceFileName(data.invoice);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      toast.success(`${selectedInvoices.length} PDFs downloaded.`, { id: 'bulk-pdf' });
+    } catch (err) {
+      toast.error(err.message || 'Failed to download selected invoices.', { id: 'bulk-pdf' });
+    } finally {
+      setBulkDownloading(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold" style={{color:'var(--text)'}}>Invoices</h1>
-        <Link to="/invoices/new" className="btn-primary flex items-center gap-2 text-sm">
-          <Plus className="w-4 h-4" /> New Invoice
-        </Link>
+        <div className="flex items-center gap-2">
+          {selectedIds.length > 0 && (
+            <button onClick={downloadSelectedPdfs} disabled={bulkDownloading} className="btn-secondary flex items-center gap-2 text-sm">
+              <FileDown className="w-4 h-4" /> {bulkDownloading ? 'Preparing...' : `Download ${selectedIds.length} PDFs`}
+            </button>
+          )}
+          <Link to="/invoices/new" className="btn-primary flex items-center gap-2 text-sm">
+            <Plus className="w-4 h-4" /> New Invoice
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
       <div className="card py-3">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-3)' }} />
+            <Search className="input-prefix absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-3)' }} />
             <input
               type="text"
-              className="input-field pl-9"
+              className="input-field input-with-icon"
               placeholder="Search invoice no. or party..."
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPagination(p => ({ ...p, page: 1 })); }}
@@ -140,6 +182,9 @@ export default function InvoiceList() {
                       <table className="w-full">
                         <thead>
                           <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                            <th className="table-header text-center w-10">
+                              <input type="checkbox" checked={allCurrentPageSelected} onChange={toggleCurrentPage} />
+                            </th>
                             <th className="table-header text-left">Invoice No.</th>
                             <th className="table-header text-left">Party</th>
                             <th className="table-header text-left">Date</th>
@@ -155,6 +200,9 @@ export default function InvoiceList() {
                               onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
                               onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                             >
+                              <td className="table-cell text-center">
+                                <input type="checkbox" checked={selectedIds.includes(inv.id)} onChange={() => toggleInvoice(inv.id)} />
+                              </td>
                               <td className="table-cell">
                                 <Link to={`/invoices/${inv.id}`} className="font-medium text-blue-500 hover:text-blue-400">{inv.invoice_no}</Link>
                               </td>
@@ -196,6 +244,7 @@ export default function InvoiceList() {
                   {/* Top row: invoice no + status + amount */}
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex items-center gap-2 flex-wrap">
+                      <input type="checkbox" checked={selectedIds.includes(inv.id)} onChange={() => toggleInvoice(inv.id)} />
                       <Link to={`/invoices/${inv.id}`}
                         className="font-bold text-blue-600 text-sm">{inv.invoice_no}</Link>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-semibold

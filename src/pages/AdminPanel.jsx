@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
-import { Users, Building2, FileText, IndianRupee, TrendingUp, Package, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, Building2, FileText, IndianRupee, TrendingUp, Package, RefreshCw, ChevronDown, ChevronUp, Eye, Power, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { getBusinessType } from '../data/businessTypes';
 
@@ -37,6 +38,29 @@ export default function AdminPanel() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleUserStatus = async (user) => {
+    const nextActive = !(user.is_active === true || user.is_active === 1);
+    if (!confirm(`${nextActive ? 'Activate' : 'Deactivate'} ${user.email}?`)) return;
+    try {
+      await api.patch(`/admin/users/${user.id}/status`, { is_active: nextActive });
+      toast.success(nextActive ? 'User activated.' : 'User deactivated.');
+      await fetchAll();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update user.');
+    }
+  };
+
+  const deleteUser = async (user) => {
+    if (!confirm(`Delete ${user.email} and all related data from database? This cannot be undone.`)) return;
+    try {
+      await api.delete(`/admin/users/${user.id}`);
+      toast.success('User deleted.');
+      fetchAll();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete user.');
     }
   };
 
@@ -122,7 +146,9 @@ export default function AdminPanel() {
                   <th className="table-header text-right">Invoices</th>
                   <th className="table-header text-right">Revenue</th>
                   <th className="table-header text-right">Parties</th>
+                  <th className="table-header text-center">Status</th>
                   <th className="table-header text-left">Joined</th>
+                  <th className="table-header text-center">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -149,8 +175,20 @@ export default function AdminPanel() {
                       <td className="table-cell text-right font-medium" style={{ color: 'var(--text-2)' }}>{fmtNum(u.invoice_count)}</td>
                       <td className="table-cell text-right font-bold text-green-600">₹{fmt(u.total_revenue)}</td>
                       <td className="table-cell text-right" style={{ color: 'var(--text-2)' }}>{fmtNum(u.party_count)}</td>
+                      <td className="table-cell text-center">
+                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${(u.is_active === true || u.is_active === 1) ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {(u.is_active === true || u.is_active === 1) ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
                       <td className="table-cell text-xs" style={{ color: 'var(--text-3)' }}>
                         {u.created_at ? format(new Date(u.created_at), 'dd MMM yyyy') : '-'}
+                      </td>
+                      <td className="table-cell text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <Link to={`/admin/users/${u.id}`} title="View details" style={{ color: 'var(--text-3)' }}><Eye className="w-4 h-4" /></Link>
+                          {!u.is_admin && <button onClick={() => toggleUserStatus(u)} title="Activate/Deactivate" className={(u.is_active === true || u.is_active === 1) ? 'text-orange-500' : 'text-green-600'}><Power className="w-4 h-4" /></button>}
+                          {!u.is_admin && <button onClick={() => deleteUser(u)} title="Delete user" className="text-red-500"><Trash2 className="w-4 h-4" /></button>}
+                        </div>
                       </td>
                     </tr>
                   );

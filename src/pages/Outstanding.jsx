@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
-import { AlertCircle, Phone, FileText } from 'lucide-react';
+import { AlertCircle, Phone, FileText, Printer, Download } from 'lucide-react';
 
 const fmt = (n) => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
 
@@ -28,19 +28,44 @@ export default function Outstanding() {
     window.open(`https://wa.me/${party.mobile}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
+  const printReport = () => {
+    document.body.classList.add('printing-report');
+    window.print();
+    setTimeout(() => document.body.classList.remove('printing-report'), 300);
+  };
+
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex items-center justify-between flex-wrap gap-3 no-print">
         <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Outstanding Report</h1>
-        <div className="px-4 py-2 text-sm rounded-xl"
-          style={{ backgroundColor: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.3)' }}>
-          <span className="text-red-500 font-medium">Total Outstanding: </span>
-          <span className="text-red-500 font-bold text-base">₹{fmt(total)}</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          {!loading && data.length > 0 && (
+            <>
+              <button onClick={printReport} className="btn-secondary flex items-center gap-2 text-sm">
+                <Printer className="w-4 h-4" /> Print
+              </button>
+              <button onClick={printReport} className="btn-primary flex items-center gap-2 text-sm">
+                <Download className="w-4 h-4" /> PDF
+              </button>
+            </>
+          )}
+          <div className="px-4 py-2 text-sm rounded-xl"
+            style={{ backgroundColor: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.3)' }}>
+            <span className="text-red-500 font-medium">Total Outstanding: </span>
+            <span className="text-red-500 font-bold text-base">₹{fmt(total)}</span>
+          </div>
         </div>
       </div>
 
-      <div className="card p-0 overflow-hidden">
+      <div className="print-area card p-0 overflow-hidden">
+        {!loading && data.length > 0 && (
+          <div className="hidden print:block p-4" style={{ borderBottom: '1px solid var(--border)' }}>
+            <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Outstanding Report</h1>
+            <p className="text-sm mt-1" style={{ color: 'var(--text-3)' }}>Total Outstanding: ₹{fmt(total)}</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>Generated on {new Date().toLocaleDateString('en-IN')}</p>
+          </div>
+        )}
         {loading ? (
           <div className="flex items-center justify-center h-48">
             <div className="animate-spin w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full" />
@@ -65,7 +90,7 @@ export default function Outstanding() {
                     <th className="table-header text-right">Total Amount</th>
                     <th className="table-header text-right">Paid</th>
                     <th className="table-header text-right">Outstanding</th>
-                    <th className="table-header text-center">Actions</th>
+                    <th className="table-header text-center no-print">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -82,7 +107,7 @@ export default function Outstanding() {
                       <td className="table-cell text-right" style={{ color: 'var(--text-2)' }}>₹{fmt(row.total_amount)}</td>
                       <td className="table-cell text-right text-green-500 font-medium">₹{fmt(row.total_paid)}</td>
                       <td className="table-cell text-right font-bold text-red-500">₹{fmt(row.outstanding)}</td>
-                      <td className="table-cell text-center">
+                      <td className="table-cell text-center no-print">
                         <div className="flex items-center justify-center gap-3">
                           <Link to={`/parties/${row.party_id}/ledger`}
                             className="text-xs text-blue-500 hover:text-blue-400 font-medium flex items-center gap-1">
@@ -111,7 +136,7 @@ export default function Outstanding() {
                     <td className="table-cell text-right font-bold text-red-500 text-base">
                       ₹{fmt(total)}
                     </td>
-                    <td></td>
+                    <td className="no-print"></td>
                   </tr>
                 </tfoot>
               </table>
@@ -137,7 +162,7 @@ export default function Outstanding() {
                     </div>
                   </div>
                   {/* Stats row */}
-                  <div className="grid grid-cols-3 gap-2 mb-3">
+                  <div className="grid grid-cols-2 gap-2 mb-3">
                     <div className="stat-box">
                       <p className="text-xs">Bills</p>
                       <span className="text-sm">{row.total_invoices}</span>

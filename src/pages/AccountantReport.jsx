@@ -1,7 +1,7 @@
 ﻿import { useState } from "react";
 import api from "../api/axios";
 import toast from "react-hot-toast";
-import { FileText, Download, Search, CheckCircle, XCircle, IndianRupee } from "lucide-react";
+import { FileText, Download, Search, CheckCircle, XCircle, Printer } from "lucide-react";
 import { format } from "date-fns";
 import { Link } from "react-router-dom";
 
@@ -48,25 +48,40 @@ export default function AccountantReport() {
     }
   };
 
-  const printReport = () => window.print();
+  const printReport = () => {
+    document.body.classList.add("printing-report");
+    window.print();
+    setTimeout(() => document.body.classList.remove("printing-report"), 300);
+  };
+
+  const reportTitle = filterType === "month"
+    ? `${MONTHS.find(m => m.v === month)?.l || ""} ${year}`
+    : filterType === "year"
+      ? year
+      : `${fromDate || "-"} to ${toDate || "-"}`;
 
   const years = ["2023", "2024", "2025", "2026", "2027"];
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex items-center justify-between flex-wrap gap-3 no-print">
         <div>
           <h1 className="text-xl font-bold" style={{ color: "var(--text)" }}>📋 Accountant Report</h1>
           <p className="text-sm mt-0.5" style={{ color: "var(--text-3)" }}>Bill-wise GST detail, party GSTIN, tax summary</p>
         </div>
         {data && (
-          <button onClick={printReport} className="btn-secondary flex items-center gap-2 text-sm">
-            <Download className="w-4 h-4" /> Print / Export
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button onClick={printReport} className="btn-secondary flex items-center gap-2 text-sm">
+              <Printer className="w-4 h-4" /> Print
+            </button>
+            <button onClick={printReport} className="btn-primary flex items-center gap-2 text-sm">
+              <Download className="w-4 h-4" /> PDF
+            </button>
+          </div>
         )}
       </div>
 
-      <div className="card space-y-4">
+      <div className="card space-y-4 no-print">
         <div className="flex gap-2 flex-wrap">
           {[
             { id: "month", label: "Monthly" },
@@ -118,7 +133,12 @@ export default function AccountantReport() {
       </div>
 
       {data && (
-        <>
+        <div className="print-area space-y-5">
+          <div className="hidden print:block card">
+            <h1 className="text-xl font-bold" style={{ color: "var(--text)" }}>Accountant Report</h1>
+            <p className="text-sm mt-1" style={{ color: "var(--text-3)" }}>Period: {reportTitle}</p>
+            <p className="text-xs mt-1" style={{ color: "var(--text-3)" }}>Generated on {new Date().toLocaleDateString("en-IN")}</p>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="card text-center py-3 px-2">
               <p className="text-2xl font-bold" style={{ color: "var(--text)" }}>{fmtNum(data.totals.total_invoices)}</p>
@@ -153,7 +173,7 @@ export default function AccountantReport() {
             </div>
           </div>
 
-          <div className="flex gap-1 p-1 rounded-xl w-fit" style={{ backgroundColor: "var(--bg-muted)", border: "1px solid var(--border)" }}>
+          <div className="flex gap-1 p-1 rounded-xl w-fit no-print" style={{ backgroundColor: "var(--bg-muted)", border: "1px solid var(--border)" }}>
             {[
               { id: "bills", label: "Bill-wise (" + data.invoices.length + ")" },
               { id: "party", label: "Party-wise (" + data.party_gst_summary.length + ")" },
@@ -409,7 +429,7 @@ export default function AccountantReport() {
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {!data && !loading && (

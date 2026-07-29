@@ -4,6 +4,7 @@ import api from '../api/axios';
 import toast from 'react-hot-toast';
 import { Plus, Search, Edit, Trash2, X, Phone, MapPin } from 'lucide-react';
 import { INDIAN_STATES } from '../data/states';
+import { isValidGstinOrNA, normalizeGstin } from '../utils/gstin';
 
 const emptyForm = {
   name: '', address: '', city: '', state: '', mobile: '',
@@ -61,13 +62,15 @@ export default function Parties() {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) { toast.error('Party name is required.'); return; }
+    if (!isValidGstinOrNA(form.gst_no)) { toast.error('Enter a valid GSTIN or NA.'); return; }
     setSaving(true);
     try {
+      const payload = { ...form, gst_no: normalizeGstin(form.gst_no) || 'NA' };
       if (editing) {
-        await api.put(`/parties/${editing.id}`, form);
+        await api.put(`/parties/${editing.id}`, payload);
         toast.success('Party updated!');
       } else {
-        await api.post('/parties', form);
+        await api.post('/parties', payload);
         toast.success('Party added!');
       }
       setShowModal(false);
@@ -102,10 +105,10 @@ export default function Parties() {
       {/* Search */}
       <div className="card py-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="input-prefix absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            className="input-field pl-9"
+            className="input-field input-with-icon"
             placeholder="Search by name, mobile, GST..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -278,7 +281,7 @@ export default function Parties() {
                 <div>
                   <label className="label">GST Number</label>
                   <input className="input-field" value={form.gst_no}
-                    onChange={(e) => setForm(p => ({ ...p, gst_no: e.target.value }))}
+                    onChange={(e) => setForm(p => ({ ...p, gst_no: e.target.value.toUpperCase() }))}
                     placeholder="NA" />
                 </div>
                 <div>
@@ -298,8 +301,8 @@ export default function Parties() {
                 </div>
                 <p className="text-xs" style={{color:'var(--text-3)'}}>2025-26 का पुराना बकाया जोड़ें — यह ledger में दिखेगा</p>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-medium text-sm" style={{color:'var(--text-3)'}}>₹</span>
-                  <input type="number" className="input-field pl-7" value={form.opening_balance}
+                  <span className="input-prefix absolute left-3 top-1/2 -translate-y-1/2 font-medium text-sm" style={{color:'var(--text-3)'}}>₹</span>
+                  <input type="number" className="input-field input-with-currency" value={form.opening_balance}
                     onChange={(e) => setForm(p => ({ ...p, opening_balance: e.target.value }))}
                     placeholder="0.00" min="0" step="0.01" />
                 </div>

@@ -5,7 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 import {
   LayoutDashboard, FileText, Users, Package, Settings,
   LogOut, Menu, X, Building2, Plus, AlertCircle, Sun, Moon,
-  BarChart2, ShieldCheck
+  BarChart2, ShieldCheck, ShoppingCart, Wallet
 } from 'lucide-react';
 
 const navItems = [
@@ -14,6 +14,9 @@ const navItems = [
   { path: '/outstanding', label: 'Outstanding', icon: AlertCircle },
   { path: '/parties', label: 'Parties', icon: Users },
   { path: '/products', label: 'Products', icon: Package },
+  { path: '/purchases', label: 'Purchases', icon: ShoppingCart },
+  { path: '/stock', label: 'Stock', icon: Package },
+  { path: '/ledgers', label: 'Bank/Cash Ledger', icon: Wallet },
   { path: '/reports/accountant', label: 'Accountant Report', icon: BarChart2 },
   { path: '/company', label: 'Company', icon: Building2 },
   { path: '/settings', label: 'Settings', icon: Settings },
@@ -88,11 +91,9 @@ export default function Layout({ children }) {
         {/* Nav */}
         <nav className="flex-1 px-2 py-2 space-y-0.5 overflow-y-auto">
           {navItems.map(({ path, label, icon: Icon, adminOnly }) => {
-            // Show admin panel only for first user or admin email
+            if (user?.is_admin && !adminOnly) return null;
             if (adminOnly) {
-              const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
-              const isAdmin = user?.id === 1 || (adminEmail && user?.email === adminEmail);
-              if (!isAdmin) return null;
+              if (!user?.is_admin) return null;
             }
             const active = location.pathname === path ||
               (path !== '/dashboard' && location.pathname.startsWith(path));

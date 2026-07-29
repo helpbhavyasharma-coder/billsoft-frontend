@@ -8,7 +8,8 @@ export function getApiErrorMessage(err, fallback) {
     return data.errors.map((e) => e.msg || e.message || String(e)).join(' ');
   }
   if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
-    return 'API server tak connect nahi ho raha — internet, firewall, ya backend URL check karein.';
+    const apiUrl = err.config?.baseURL || 'API URL';
+    return `API server tak connect nahi ho raha — ${apiUrl} check karein. Cache clear karke dubara try karein.`;
   }
   if (err.code === 'ECONNABORTED') {
     return 'Request time out — thodi der baad dubara try karein.';

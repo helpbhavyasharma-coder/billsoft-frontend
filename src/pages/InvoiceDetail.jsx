@@ -2,8 +2,10 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
-import { Edit, FileDown, ArrowLeft, CheckCircle, Plus, Trash2, X, Printer, Share2 } from 'lucide-react';
+import { Edit, FileDown, ArrowLeft, Plus, Trash2, X, Printer, Share2, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
+import { downloadInvoicePdf, shareInvoicePdf } from '../utils/invoicePdf';
+import { useAuth } from '../context/AuthContext';
 
 const statusColors = {
   unpaid: 'bg-red-100 text-red-700',
@@ -26,51 +28,49 @@ const parseDate = (d) => {
 export default function InvoiceDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { company } = useAuth();
   const [invoice, setInvoice] = useState(null);
   const [items, setItems] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [returns, setReturns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
+  const [showReturnModal, setShowReturnModal] = useState(false);
   const [payForm, setPayForm] = useState({
     amount: '', payment_date: format(new Date(), 'yyyy-MM-dd'),
     payment_mode: 'cash', reference_no: '', notes: '',
   });
+  const [returnForm, setReturnForm] = useState({
+    amount: '',
+    return_date: format(new Date(), 'yyyy-MM-dd'),
+    reason: 'Goods return',
+    notes: '',
+  });
   const [paying, setPaying] = useState(false);
+  const [returning, setReturning] = useState(false);
 
   useEffect(() => { fetchAll(); }, [id]);
 
   const fetchAll = async () => {
     try {
-      const [invRes, payRes] = await Promise.all([
+      const [invRes, payRes, retRes] = await Promise.all([
         api.get(`/invoices/${id}`),
         api.get(`/payments/invoice/${id}`),
+        api.get(`/goods-returns?invoice_id=${id}`),
       ]);
       if (invRes.data.success) { setInvoice(invRes.data.invoice); setItems(invRes.data.items); }
       if (payRes.data.success) setPayments(payRes.data.payments);
+      if (retRes.data.success) setReturns(retRes.data.returns);
     } catch { toast.error('Failed to load invoice.'); }
     finally { setLoading(false); }
   };
 
   const downloadPDF = async () => {
+    if (!invoice) return;
     setDownloading(true);
     try {
-      const response = await api.get(`/pdf/invoice/${id}`, { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      const cleanInvoiceNo = invoice.invoice_no.replace(/\//g, ' ');
-      const cleanPartyName = invoice.party_name.replace(/[^a-zA-Z0-9\s]/g, '').trim();
-      const cleanAmount = parseFloat(invoice.grand_total || 0).toLocaleString('en-IN', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2,
-      });
-      const fileName = `${cleanInvoiceNo} ${cleanPartyName} ${cleanAmount}.pdf`;
-      link.setAttribute('download', fileName);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      await downloadInvoicePdf({ company, invoice, items });
       toast.success('PDF downloaded!');
     } catch { toast.error('Failed to generate PDF.'); }
     finally { setDownloading(false); }
@@ -99,10 +99,21 @@ export default function InvoiceDetail() {
     }
   };
 
-  const handleWhatsApp = () => {
+  const handleWhatsApp = async () => {
     if (!invoice) return;
     const msg = `Dear ${invoice.party_name},\n\nYour invoice *${invoice.invoice_no}* dated ${parseDate(invoice.invoice_date) ? format(parseDate(invoice.invoice_date), 'dd/MM/yyyy') : ''} for *₹${fmt(invoice.grand_total)}* is ready.\n\nPlease make payment at your earliest convenience.\n\nThank you!`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+    const toastId = toast.loading('Preparing PDF...');
+    try {
+      const shared = await shareInvoicePdf({ company, invoice, items }, msg);
+      toast.dismiss(toastId);
+      if (!shared) {
+        // Desktop / unsupported: fall back to a text-only WhatsApp message.
+        window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+      }
+    } catch {
+      toast.dismiss(toastId);
+      window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+    }
   };
 
   const handlePayment = async (e) => {
@@ -133,6 +144,47 @@ export default function InvoiceDetail() {
     } catch { toast.error('Failed to delete payment.'); }
   };
 
+  const openReturnModal = () => {
+    setReturnForm({
+      amount: outstanding.toFixed(2),
+      return_date: format(new Date(), 'yyyy-MM-dd'),
+      reason: 'Goods return',
+      notes: '',
+    });
+    setShowReturnModal(true);
+  };
+
+  const handleReturn = async (e) => {
+    e.preventDefault();
+    if (!returnForm.amount || parseFloat(returnForm.amount) <= 0) {
+      toast.error('Enter valid return amount.'); return;
+    }
+    setReturning(true);
+    try {
+      const { data } = await api.post('/goods-returns', {
+        invoice_id: parseInt(id),
+        party_id: invoice.party_id,
+        ...returnForm,
+      });
+      if (data.success) {
+        toast.success('Goods return recorded.');
+        setShowReturnModal(false);
+        fetchAll();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to record goods return.');
+    } finally { setReturning(false); }
+  };
+
+  const deleteReturn = async (returnId) => {
+    if (!confirm('Delete this goods return entry?')) return;
+    try {
+      await api.delete(`/goods-returns/${returnId}`);
+      toast.success('Goods return deleted.');
+      fetchAll();
+    } catch { toast.error('Failed to delete goods return.'); }
+  };
+
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full" />
@@ -140,7 +192,8 @@ export default function InvoiceDetail() {
   );
   if (!invoice) return <div className="text-center py-12" style={{color:'var(--text-3)'}}>Invoice not found.</div>;
 
-  const outstanding = parseFloat(invoice.grand_total) - parseFloat(invoice.amount_paid || 0);
+  const returnedTotal = parseFloat(invoice.goods_return_total || 0);
+  const outstanding = Math.max(parseFloat(invoice.grand_total) - parseFloat(invoice.amount_paid || 0) - returnedTotal, 0);
 
   return (
     <div className="max-w-4xl mx-auto space-y-4">
@@ -167,6 +220,9 @@ export default function InvoiceDetail() {
               <Plus className="w-4 h-4" /> Add Payment
             </button>
           )}
+          <button onClick={openReturnModal} className="btn-secondary flex items-center gap-1.5 text-sm text-orange-700 border-orange-200 hover:bg-orange-50">
+            <RotateCcw className="w-4 h-4" /> Goods Return
+          </button>
           <button onClick={handleWhatsApp} className="btn-secondary flex items-center gap-1.5 text-sm text-green-700 border-green-200 hover:bg-green-50">
             <Share2 className="w-4 h-4" /> WhatsApp
           </button>
@@ -193,6 +249,7 @@ export default function InvoiceDetail() {
             <div className="flex gap-6 text-sm">
               <div><span style={{color:'var(--text-3)'}}>Total: </span><span className="font-bold" style={{color:'var(--text)'}}>₹{fmt(invoice.grand_total)}</span></div>
               <div><span style={{color:'var(--text-3)'}}>Paid: </span><span className="font-bold text-green-600">₹{fmt(invoice.amount_paid)}</span></div>
+              {returnedTotal > 0 && <div><span style={{color:'var(--text-3)'}}>Goods Return: </span><span className="font-bold text-orange-600">₹{fmt(returnedTotal)}</span></div>}
               <div><span style={{color:'var(--text-3)'}}>Outstanding: </span><span className="font-bold text-red-600">₹{fmt(outstanding)}</span></div>
             </div>
             <button onClick={() => { setPayForm(p => ({ ...p, amount: outstanding.toFixed(2) })); setShowPayModal(true); }}
@@ -264,11 +321,59 @@ export default function InvoiceDetail() {
             {parseFloat(invoice.total_cgst) > 0 && <div className="flex justify-between" style={{color:'var(--text-2)'}}><span>CGST</span><span>₹{fmt(invoice.total_cgst)}</span></div>}
             {parseFloat(invoice.total_sgst) > 0 && <div className="flex justify-between" style={{color:'var(--text-2)'}}><span>SGST</span><span>₹{fmt(invoice.total_sgst)}</span></div>}
             {parseFloat(invoice.total_igst) > 0 && <div className="flex justify-between" style={{color:'var(--text-2)'}}><span>IGST</span><span>₹{fmt(invoice.total_igst)}</span></div>}
+            {returnedTotal > 0 && <div className="flex justify-between text-orange-600"><span>Goods Return</span><span>-₹{fmt(returnedTotal)}</span></div>}
             <div className="flex justify-between font-bold text-base pt-2" style={{color:'var(--text)', borderTop:'1px solid var(--border)'}}>
               <span>Grand Total</span><span>₹{fmt(invoice.grand_total)}</span>
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Goods Return History */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold" style={{color:'var(--text)'}}>Goods Return / Credit Notes</h2>
+          <button onClick={openReturnModal} className="btn-secondary text-xs py-1.5 flex items-center gap-1 text-orange-700">
+            <RotateCcw className="w-3.5 h-3.5" /> Add Return
+          </button>
+        </div>
+        {returns.length === 0 ? (
+          <p className="text-sm text-center py-4" style={{color:'var(--text-3)'}}>No goods return recorded yet.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{borderBottom:'1px solid var(--border)'}}>
+                <th className="table-header text-left">Date</th>
+                <th className="table-header text-left">Return No.</th>
+                <th className="table-header text-left">Reason</th>
+                <th className="table-header text-right">Amount</th>
+                <th className="table-header text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {returns.map((r) => (
+                <tr key={r.id} style={{borderBottom:'1px solid var(--border)'}}>
+                  <td className="table-cell">{format(new Date(r.return_date), 'dd MMM yyyy')}</td>
+                  <td className="table-cell font-medium text-orange-700">{r.return_no}</td>
+                  <td className="table-cell" style={{color:'var(--text-3)'}}>{r.reason || r.notes || '-'}</td>
+                  <td className="table-cell text-right font-semibold text-orange-600">₹{fmt(r.amount)}</td>
+                  <td className="table-cell text-center">
+                    <button onClick={() => deleteReturn(r.id)} className="text-red-400 hover:text-red-600">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{backgroundColor:'rgba(249,115,22,0.08)'}}>
+                <td colSpan={3} className="table-cell font-semibold text-orange-700">Total Adjustment</td>
+                <td className="table-cell text-right font-bold text-orange-600">₹{fmt(returnedTotal)}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        )}
       </div>
 
       {/* Payment History */}
@@ -331,6 +436,59 @@ export default function InvoiceDetail() {
         )}
       </div>
 
+      {/* Goods Return Modal */}
+      {showReturnModal && (
+        <div className="modal-overlay">
+          <div className="modal-box">
+            <div className="flex items-center justify-between p-5" style={{borderBottom:'1px solid var(--border)'}}>
+              <h2 className="text-lg font-semibold" style={{color:'var(--text)'}}>Goods Return</h2>
+              <button onClick={() => setShowReturnModal(false)} style={{color:'var(--text-3)'}}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleReturn} className="p-5 space-y-4">
+              <div className="rounded-lg p-3 text-sm" style={{backgroundColor:'rgba(249,115,22,0.08)', border:'1px solid rgba(249,115,22,0.25)'}}>
+                <div className="flex justify-between"><span style={{color:'var(--text-3)'}}>Invoice Total</span><span className="font-bold" style={{color:'var(--text)'}}>₹{fmt(invoice.grand_total)}</span></div>
+                <div className="flex justify-between"><span style={{color:'var(--text-3)'}}>Paid</span><span className="font-bold text-green-600">₹{fmt(invoice.amount_paid)}</span></div>
+                <div className="flex justify-between"><span style={{color:'var(--text-3)'}}>Old Return</span><span className="font-bold text-orange-600">₹{fmt(returnedTotal)}</span></div>
+                <div className="flex justify-between mt-1 pt-1" style={{borderTop:'1px solid var(--border)'}}><span style={{color:'var(--text-3)'}}>Current Outstanding</span><span className="font-bold text-red-600">₹{fmt(outstanding)}</span></div>
+              </div>
+              <div>
+                <label className="label">Return Amount *</label>
+                <input type="number" className="input-field" value={returnForm.amount}
+                  onChange={(e) => setReturnForm(p => ({ ...p, amount: e.target.value }))}
+                  placeholder="0.00" min="0.01" step="0.01" required autoFocus />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Return Date *</label>
+                  <input type="date" className="input-field" value={returnForm.return_date}
+                    onChange={(e) => setReturnForm(p => ({ ...p, return_date: e.target.value }))} required />
+                </div>
+                <div>
+                  <label className="label">Reason</label>
+                  <input type="text" className="input-field" value={returnForm.reason}
+                    onChange={(e) => setReturnForm(p => ({ ...p, reason: e.target.value }))}
+                    placeholder="Damage / expiry / wrong item" />
+                </div>
+              </div>
+              <div>
+                <label className="label">Notes (optional)</label>
+                <input type="text" className="input-field" value={returnForm.notes}
+                  onChange={(e) => setReturnForm(p => ({ ...p, notes: e.target.value }))}
+                  placeholder="Item detail or remarks" />
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setShowReturnModal(false)} className="btn-secondary flex-1">Cancel</button>
+                <button type="submit" disabled={returning} className="btn-primary flex-1">
+                  {returning ? 'Saving...' : 'Save Return'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Payment Modal */}
       {showPayModal && (
         <div className="modal-overlay">
@@ -343,9 +501,10 @@ export default function InvoiceDetail() {
             </div>
             <form onSubmit={handlePayment} className="p-5 space-y-4">
               <div className="rounded-lg p-3 text-sm" style={{backgroundColor:'var(--bg-muted)', border:'1px solid var(--border)'}}>
-                <div className="flex justify-between"><span style={{color:'var(--text-3)'}}>Invoice Total</span><span className="font-bold" style={{color:'var(--text)'}}>₹{fmt(invoice.grand_total)}</span></div>
-                <div className="flex justify-between"><span style={{color:'var(--text-3)'}}>Already Paid</span><span className="font-bold text-green-600">₹{fmt(invoice.amount_paid)}</span></div>
-                <div className="flex justify-between mt-1 pt-1" style={{borderTop:'1px solid var(--border)'}}><span style={{color:'var(--text-3)'}}>Outstanding</span><span className="font-bold text-red-600">₹{fmt(outstanding)}</span></div>
+              <div className="flex justify-between"><span style={{color:'var(--text-3)'}}>Invoice Total</span><span className="font-bold" style={{color:'var(--text)'}}>₹{fmt(invoice.grand_total)}</span></div>
+              <div className="flex justify-between"><span style={{color:'var(--text-3)'}}>Already Paid</span><span className="font-bold text-green-600">₹{fmt(invoice.amount_paid)}</span></div>
+              {returnedTotal > 0 && <div className="flex justify-between"><span style={{color:'var(--text-3)'}}>Goods Return</span><span className="font-bold text-orange-600">₹{fmt(returnedTotal)}</span></div>}
+              <div className="flex justify-between mt-1 pt-1" style={{borderTop:'1px solid var(--border)'}}><span style={{color:'var(--text-3)'}}>Outstanding</span><span className="font-bold text-red-600">₹{fmt(outstanding)}</span></div>
               </div>
               <div>
                 <label className="label">Amount Received *</label>
@@ -390,5 +549,3 @@ export default function InvoiceDetail() {
     </div>
   );
 }
-
-
