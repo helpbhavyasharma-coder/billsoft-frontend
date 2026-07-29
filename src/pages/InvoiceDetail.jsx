@@ -46,6 +46,7 @@ export default function InvoiceDetail() {
     return_date: format(new Date(), 'yyyy-MM-dd'),
     reason: 'Goods return',
     notes: '',
+    items: [],
   });
   const [paying, setPaying] = useState(false);
   const [returning, setReturning] = useState(false);
@@ -145,13 +146,36 @@ export default function InvoiceDetail() {
   };
 
   const openReturnModal = () => {
+    const returnedByItem = {};
+    returns.forEach((ret) => (ret.items || []).forEach((rit) => {
+      returnedByItem[rit.invoice_item_id] = (returnedByItem[rit.invoice_item_id] || 0) + parseFloat(rit.qty || 0);
+    }));
     setReturnForm({
       amount: outstanding.toFixed(2),
       return_date: format(new Date(), 'yyyy-MM-dd'),
       reason: 'Goods return',
       notes: '',
+      items: items.map((item) => {
+        const available = Math.max(parseFloat(item.qty || 0) - parseFloat(returnedByItem[item.id] || 0), 0);
+        return {
+          invoice_item_id: item.id,
+          description: item.description,
+          qty: '',
+          available_qty: available,
+          unit: item.unit,
+          line_rate: parseFloat(item.total_sale || 0) / Math.max(parseFloat(item.qty || 0), 1),
+        };
+      }),
     });
     setShowReturnModal(true);
+  };
+
+  const updateReturnItem = (idx, qty) => {
+    setReturnForm((prev) => {
+      const nextItems = prev.items.map((item, i) => i === idx ? { ...item, qty } : item);
+      const amount = nextItems.reduce((sum, item) => sum + parseFloat(item.qty || 0) * parseFloat(item.line_rate || 0), 0);
+      return { ...prev, items: nextItems, amount: amount > 0 ? amount.toFixed(2) : prev.amount };
+    });
   };
 
   const handleReturn = async (e) => {
@@ -165,6 +189,10 @@ export default function InvoiceDetail() {
         invoice_id: parseInt(id),
         party_id: invoice.party_id,
         ...returnForm,
+        items: returnForm.items.filter((item) => parseFloat(item.qty || 0) > 0).map((item) => ({
+          invoice_item_id: item.invoice_item_id,
+          qty: parseFloat(item.qty || 0),
+        })),
       });
       if (data.success) {
         toast.success('Goods return recorded.');
@@ -459,6 +487,42 @@ export default function InvoiceDetail() {
                   onChange={(e) => setReturnForm(p => ({ ...p, amount: e.target.value }))}
                   placeholder="0.00" min="0.01" step="0.01" required autoFocus />
               </div>
+              {returnForm.items.length > 0 && (
+                <div>
+                  <label className="label">Item-wise Return Qty</label>
+                  <div className="max-h-48 overflow-auto rounded-lg" style={{border:'1px solid var(--border)'}}>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr style={{borderBottom:'1px solid var(--border)'}}>
+                          <th className="table-header text-left">Item</th>
+                          <th className="table-header text-right">Available</th>
+                          <th className="table-header text-right">Return</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {returnForm.items.map((item, idx) => (
+                          <tr key={item.invoice_item_id} style={{borderBottom:'1px solid var(--border)'}}>
+                            <td className="table-cell">{item.description}</td>
+                            <td className="table-cell text-right">{item.available_qty} {item.unit}</td>
+                            <td className="table-cell text-right">
+                              <input
+                                type="number"
+                                min="0"
+                                max={item.available_qty}
+                                step="0.001"
+                                className="input-field text-right"
+                                value={item.qty}
+                                onChange={(e) => updateReturnItem(idx, e.target.value)}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>Qty भरने पर return amount auto-calculate होगा और stock वापस आएगा.</p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label">Return Date *</label>

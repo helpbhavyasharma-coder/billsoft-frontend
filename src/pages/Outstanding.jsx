@@ -1,9 +1,24 @@
 ﻿import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
-import { AlertCircle, Phone, FileText, Printer, Download } from 'lucide-react';
+import { AlertCircle, Phone, FileText, FileSpreadsheet, Download } from 'lucide-react';
 
 const fmt = (n) => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+
+let pdfMakePromise = null;
+async function getPdfMake() {
+  if (!pdfMakePromise) {
+    pdfMakePromise = (async () => {
+      const pdfMakeMod = await import('pdfmake/build/pdfmake');
+      const pdfFontsMod = await import('pdfmake/build/vfs_fonts');
+      const pdfMake = pdfMakeMod.default || pdfMakeMod;
+      const vfs = pdfFontsMod.default || pdfFontsMod;
+      pdfMake.vfs = vfs.vfs || vfs;
+      return pdfMake;
+    })();
+  }
+  return pdfMakePromise;
+}
 
 export default function Outstanding() {
   const [data, setData] = useState([]);
@@ -28,10 +43,67 @@ export default function Outstanding() {
     window.open(`https://wa.me/${party.mobile}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
-  const printReport = () => {
-    document.body.classList.add('printing-report');
-    window.print();
-    setTimeout(() => document.body.classList.remove('printing-report'), 300);
+  const downloadCsv = () => {
+    const header = ['#', 'Party Name', 'Mobile', 'Total Bills', 'Total Amount', 'Paid', 'Outstanding'];
+    const rows = data.map((row, idx) => [
+      idx + 1,
+      row.party_name,
+      row.mobile || '',
+      row.total_invoices,
+      row.total_amount,
+      row.total_paid,
+      row.outstanding,
+    ]);
+    const csv = [header, ...rows].map((cols) => cols.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `outstanding-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadPdf = async () => {
+    const pdfMake = await getPdfMake();
+    const body = [
+      [
+        { text: '#', bold: true },
+        { text: 'Party Name', bold: true },
+        { text: 'Mobile', bold: true },
+        { text: 'Bills', bold: true, alignment: 'right' },
+        { text: 'Total', bold: true, alignment: 'right' },
+        { text: 'Paid', bold: true, alignment: 'right' },
+        { text: 'Outstanding', bold: true, alignment: 'right' },
+      ],
+      ...data.map((row, idx) => [
+        String(idx + 1),
+        row.party_name || '',
+        row.mobile || '-',
+        { text: String(row.total_invoices || 0), alignment: 'right' },
+        { text: 'Rs.' + fmt(row.total_amount), alignment: 'right' },
+        { text: 'Rs.' + fmt(row.total_paid), alignment: 'right' },
+        { text: 'Rs.' + fmt(row.outstanding), alignment: 'right', bold: true },
+      ]),
+      [
+        { text: 'TOTAL', colSpan: 4, bold: true }, {}, {}, {},
+        { text: 'Rs.' + fmt(data.reduce((s, r) => s + parseFloat(r.total_amount || 0), 0)), alignment: 'right', bold: true },
+        { text: 'Rs.' + fmt(data.reduce((s, r) => s + parseFloat(r.total_paid || 0), 0)), alignment: 'right', bold: true },
+        { text: 'Rs.' + fmt(total), alignment: 'right', bold: true, color: '#c00' },
+      ],
+    ];
+    pdfMake.createPdf({
+      pageSize: 'A4',
+      pageOrientation: 'landscape',
+      pageMargins: [28, 32, 28, 32],
+      content: [
+        { text: 'Outstanding Report', style: 'title' },
+        { text: `Generated: ${new Date().toLocaleDateString('en-IN')}    Total Outstanding: Rs.${fmt(total)}`, margin: [0, 2, 0, 12] },
+        { table: { headerRows: 1, widths: [24, '*', 80, 45, 85, 85, 95], body }, layout: 'lightHorizontalLines' },
+      ],
+      styles: { title: { fontSize: 16, bold: true } },
+      defaultStyle: { fontSize: 9 },
+    }).download(`outstanding-report-${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
   return (
@@ -42,10 +114,10 @@ export default function Outstanding() {
         <div className="flex items-center gap-2 flex-wrap">
           {!loading && data.length > 0 && (
             <>
-              <button onClick={printReport} className="btn-secondary flex items-center gap-2 text-sm">
-                <Printer className="w-4 h-4" /> Print
+              <button onClick={downloadCsv} className="btn-secondary flex items-center gap-2 text-sm">
+                <FileSpreadsheet className="w-4 h-4" /> CSV
               </button>
-              <button onClick={printReport} className="btn-primary flex items-center gap-2 text-sm">
+              <button onClick={downloadPdf} className="btn-primary flex items-center gap-2 text-sm">
                 <Download className="w-4 h-4" /> PDF
               </button>
             </>

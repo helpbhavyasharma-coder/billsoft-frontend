@@ -23,6 +23,7 @@ const emptyForm = () => ({
   bill_no: '',
   purchase_date: today,
   payment_status: 'unpaid',
+  amount_paid: '',
   payment_mode: 'cash',
   notes: '',
   items: [{ ...emptyItem }],
@@ -141,6 +142,7 @@ export default function Purchases() {
         bill_no: data.purchase.bill_no || '',
         purchase_date: String(data.purchase.purchase_date || '').slice(0, 10),
         payment_status: data.purchase.payment_status || 'unpaid',
+        amount_paid: data.purchase.amount_paid || '',
         payment_mode: data.purchase.payment_mode || 'cash',
         notes: data.purchase.notes || '',
         items: data.purchase.items?.length ? data.purchase.items.map((item) => ({
@@ -163,12 +165,12 @@ export default function Purchases() {
   };
 
   const deletePurchase = async (purchase) => {
-    const ok = window.confirm(`Delete purchase bill ${purchase.bill_no || `#${purchase.id}`}? Stock entries from this bill will also be removed.`);
+    const ok = window.confirm(`Cancel purchase bill ${purchase.bill_no || `#${purchase.id}`}? Stock and ledger entries from this bill will be reversed.`);
     if (!ok) return;
 
     try {
       await api.delete(`/purchases/${purchase.id}`);
-      toast.success('Purchase bill deleted.');
+      toast.success('Purchase bill cancelled.');
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to delete purchase bill.');
@@ -193,7 +195,7 @@ export default function Purchases() {
             </button>
           </div>
 
-          <div className="grid md:grid-cols-5 gap-3">
+          <div className="grid md:grid-cols-6 gap-3">
             <div>
               <label className="label">Supplier</label>
               <select className="input-field" value={form.supplier_id} onChange={(e) => setForm((p) => ({ ...p, supplier_id: e.target.value }))}>
@@ -211,11 +213,23 @@ export default function Purchases() {
             </div>
             <div>
               <label className="label">Payment</label>
-              <select className="input-field" value={form.payment_status} onChange={(e) => setForm((p) => ({ ...p, payment_status: e.target.value }))}>
+              <select className="input-field" value={form.payment_status} onChange={(e) => setForm((p) => ({ ...p, payment_status: e.target.value, amount_paid: e.target.value === 'paid' ? totals.total.toFixed(2) : e.target.value === 'unpaid' ? '' : p.amount_paid }))}>
                 <option value="unpaid">Unpaid</option>
                 <option value="partial">Partial</option>
                 <option value="paid">Paid</option>
               </select>
+            </div>
+            <div>
+              <label className="label">Paid Amount</label>
+              <input
+                type="number"
+                className="input-field"
+                min="0"
+                step="0.01"
+                value={form.amount_paid}
+                disabled={form.payment_status === 'unpaid'}
+                onChange={(e) => setForm((p) => ({ ...p, amount_paid: e.target.value, payment_status: parseFloat(e.target.value || 0) >= totals.total ? 'paid' : parseFloat(e.target.value || 0) > 0 ? 'partial' : 'unpaid' }))}
+              />
             </div>
             <div>
               <label className="label">Mode</label>
@@ -302,6 +316,8 @@ export default function Purchases() {
                   <th className="table-header text-left">Bill No.</th>
                   <th className="table-header text-left">Supplier</th>
                   <th className="table-header text-right">Amount</th>
+                  <th className="table-header text-right">Paid</th>
+                  <th className="table-header text-right">Payable</th>
                   <th className="table-header text-center">Status</th>
                   <th className="table-header text-center">Actions</th>
                 </tr>
@@ -313,12 +329,14 @@ export default function Purchases() {
                     <td className="table-cell">{purchase.bill_no || '-'}</td>
                     <td className="table-cell">{purchase.supplier_name || '-'}</td>
                     <td className="table-cell text-right font-bold">₹{fmt(purchase.grand_total)}</td>
+                    <td className="table-cell text-right text-green-600 font-medium">₹{fmt(purchase.amount_paid)}</td>
+                    <td className="table-cell text-right text-red-600 font-medium">₹{fmt(purchase.payable)}</td>
                     <td className="table-cell text-center">{purchase.payment_status}</td>
                     <td className="table-cell">
                       <div className="flex items-center justify-center gap-2">
                         <button title="View" onClick={() => loadPurchase(purchase.id, 'view')} className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50"><Eye className="w-4 h-4" /></button>
                         <button title="Edit" onClick={() => loadPurchase(purchase.id, 'edit')} className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50"><Pencil className="w-4 h-4" /></button>
-                        <button title="Delete" onClick={() => deletePurchase(purchase)} className="p-1.5 rounded-lg text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4" /></button>
+                        <button title="Cancel" onClick={() => deletePurchase(purchase)} className="p-1.5 rounded-lg text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </td>
                   </tr>

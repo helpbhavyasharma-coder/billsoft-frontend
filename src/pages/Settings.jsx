@@ -31,17 +31,8 @@ export default function Settings() {
 
   const exportBackup = async () => {
     try {
-      const endpoints = ['/company', '/parties', '/products', '/purchases', '/invoices?limit=500'];
-      const [companyRes, partiesRes, productsRes, purchasesRes, invoicesRes] = await Promise.all(endpoints.map((url) => api.get(url)));
-      const backup = {
-        exported_at: new Date().toISOString(),
-        user: { id: user?.id, email: user?.email },
-        company: companyRes.data.company,
-        parties: partiesRes.data.parties || [],
-        products: productsRes.data.products || [],
-        purchases: purchasesRes.data.purchases || [],
-        invoices: invoicesRes.data.invoices || [],
-      };
+      const { data } = await api.get('/settings/backup');
+      const backup = { ...(data.backup || {}), user: { id: user?.id, email: user?.email } };
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -91,7 +82,7 @@ export default function Settings() {
           <Download className="w-5 h-5 text-green-600" />
           <h2 className="font-semibold" style={{ color: 'var(--text)' }}>Backup Export</h2>
         </div>
-        <p className="text-sm" style={{ color: 'var(--text-3)' }}>Download company, parties, products, purchases, and invoice list as a JSON backup.</p>
+        <p className="text-sm" style={{ color: 'var(--text-3)' }}>Download company, parties, products, invoices, payments, returns, purchases, stock movements, and ledgers as a JSON backup.</p>
         <button type="button" onClick={exportBackup} className="btn-secondary flex items-center gap-2 text-sm">
           <Download className="w-4 h-4" /> Export Backup
         </button>

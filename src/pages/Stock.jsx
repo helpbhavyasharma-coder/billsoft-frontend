@@ -1,17 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
-import { History, Package, RefreshCw, Search, X } from 'lucide-react';
+import { History, Package, Plus, RefreshCw, Search, X } from 'lucide-react';
 
 const qty = (n) => parseFloat(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 3 });
 const movementLabels = {
   purchase_in: 'Purchased',
   sale_out: 'Sold',
+  sale_return_in: 'Sales Return',
   damage: 'Damaged',
   expiry: 'Expired',
   adjustment_in: 'Adjustment In',
   adjustment_out: 'Adjustment Out',
 };
+const today = new Date().toISOString().slice(0, 10);
 
 export default function Stock() {
   const [stock, setStock] = useState([]);
@@ -21,6 +23,8 @@ export default function Stock() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [movements, setMovements] = useState([]);
   const [loadingMovements, setLoadingMovements] = useState(false);
+  const [showAdjustment, setShowAdjustment] = useState(false);
+  const [adjustment, setAdjustment] = useState({ product_id: '', movement_date: today, movement_type: 'adjustment_in', qty: '', notes: '' });
 
   useEffect(() => { fetchStock(); }, []);
 
@@ -33,6 +37,23 @@ export default function Stock() {
       toast.error('Failed to load stock.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveAdjustment = async (e) => {
+    e.preventDefault();
+    if (!adjustment.product_id || !adjustment.qty || parseFloat(adjustment.qty) <= 0) {
+      toast.error('Product and valid quantity required.');
+      return;
+    }
+    try {
+      await api.post('/stock/adjustment', adjustment);
+      toast.success('Stock adjusted.');
+      setAdjustment({ product_id: '', movement_date: today, movement_type: 'adjustment_in', qty: '', notes: '' });
+      setShowAdjustment(false);
+      fetchStock();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to adjust stock.');
     }
   };
 
@@ -79,11 +100,51 @@ export default function Stock() {
         <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Stock Management</h1>
         <div className="flex items-center gap-3">
           <div className="text-sm" style={{ color: 'var(--text-3)' }}>{filtered.length} products</div>
+          <button onClick={() => setShowAdjustment(true)} className="btn-primary text-sm flex items-center gap-2">
+            <Plus className="w-4 h-4" /> Adjustment
+          </button>
           <button onClick={fetchStock} className="btn-secondary text-sm flex items-center gap-2">
             <RefreshCw className="w-4 h-4" /> Sync
           </button>
         </div>
       </div>
+
+      {showAdjustment && (
+        <form onSubmit={saveAdjustment} className="card grid md:grid-cols-6 gap-3 items-end">
+          <div className="md:col-span-2">
+            <label className="label">Product</label>
+            <select className="input-field" value={adjustment.product_id} onChange={(e) => setAdjustment((p) => ({ ...p, product_id: e.target.value }))}>
+              <option value="">Select product</option>
+              {stock.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Date</label>
+            <input type="date" className="input-field" value={adjustment.movement_date} onChange={(e) => setAdjustment((p) => ({ ...p, movement_date: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label">Type</label>
+            <select className="input-field" value={adjustment.movement_type} onChange={(e) => setAdjustment((p) => ({ ...p, movement_type: e.target.value }))}>
+              <option value="adjustment_in">Stock In</option>
+              <option value="adjustment_out">Stock Out</option>
+              <option value="damage">Damage</option>
+              <option value="expiry">Expiry</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Qty</label>
+            <input type="number" min="0.001" step="0.001" className="input-field" value={adjustment.qty} onChange={(e) => setAdjustment((p) => ({ ...p, qty: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label">Notes</label>
+            <input className="input-field" value={adjustment.notes} onChange={(e) => setAdjustment((p) => ({ ...p, notes: e.target.value }))} />
+          </div>
+          <div className="md:col-span-6 flex justify-end gap-2">
+            <button type="button" onClick={() => setShowAdjustment(false)} className="btn-secondary">Cancel</button>
+            <button className="btn-primary">Save Adjustment</button>
+          </div>
+        </form>
+      )}
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="card py-3"><p className="text-xs" style={{ color: 'var(--text-3)' }}>Total Purchased</p><p className="text-lg font-bold text-green-600">{qty(totals.purchased)}</p></div>
