@@ -57,11 +57,6 @@ export default function Purchases() {
   const [form, setForm] = useState(emptyForm);
 
   useEffect(() => { fetchData(); }, []);
-  useEffect(() => {
-    if (!showForm || form.payment_status !== 'paid') return;
-    const nextPaid = totals.grand.toFixed(2);
-    if (String(form.amount_paid) !== nextPaid) setForm((prev) => ({ ...prev, amount_paid: nextPaid }));
-  }, [showForm, form.payment_status, form.amount_paid, totals.grand]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -99,6 +94,12 @@ export default function Purchases() {
     const roundOff = parseFloat(form.round_off || 0);
     return { ...itemTotals, round_off: roundOff, grand: itemTotals.total + roundOff };
   }, [form.items, form.round_off]);
+
+  useEffect(() => {
+    if (!showForm || form.payment_status !== 'paid') return;
+    const nextPaid = totals.grand.toFixed(2);
+    if (String(form.amount_paid) !== nextPaid) setForm((prev) => ({ ...prev, amount_paid: nextPaid }));
+  }, [showForm, form.payment_status, form.amount_paid, totals.grand]);
 
   const resetForm = () => {
     setEditingId(null);
