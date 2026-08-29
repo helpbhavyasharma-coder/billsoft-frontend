@@ -4,7 +4,7 @@ import api from '../api/axios';
 import toast from 'react-hot-toast';
 import { Plus, Search, FileDown, Eye, Edit, Trash2, MessageCircle, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
-import { buildInvoiceFileName, downloadInvoicePdf, generateInvoicePdfBlob } from '../utils/invoicePdf';
+import { buildInvoiceFileName, downloadInvoicePdf, generateInvoicePdfBlob, triggerFileDownload } from '../utils/invoicePdf';
 import { useAuth } from '../context/AuthContext';
 
 const statusColors = {
@@ -162,14 +162,7 @@ export default function InvoiceList() {
         if (!data.success) throw new Error(`Invoice ${inv.invoice_no} load failed`);
         const blob = await generateInvoicePdfBlob({ company, invoice: data.invoice, items: data.items });
 
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = buildInvoiceFileName(data.invoice);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        URL.revokeObjectURL(url);
+        triggerFileDownload(blob, buildInvoiceFileName(data.invoice));
 
         await new Promise((resolve) => setTimeout(resolve, 250));
       }
@@ -183,14 +176,7 @@ export default function InvoiceList() {
 
   const downloadGeneratedPdfFiles = (files) => {
     files.forEach((file) => {
-      const url = URL.createObjectURL(file);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = file.name;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      triggerFileDownload(file, file.name);
     });
   };
 

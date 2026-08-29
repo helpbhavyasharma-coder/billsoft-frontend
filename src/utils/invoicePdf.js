@@ -62,6 +62,21 @@ export function buildInvoiceFileName(inv) {
   return `${cleanInvoiceNo} ${cleanPartyName} ${cleanAmount}.pdf`.replace(/\s+/g, ' ').trim();
 }
 
+export function triggerFileDownload(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.rel = 'noopener';
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+  window.setTimeout(() => {
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, 60000);
+}
+
 /** Fetch an image URL and return a data URL (or null on failure). */
 async function imageToDataUrl(url) {
   if (!url) return null;
@@ -416,14 +431,7 @@ export async function generateInvoicePdfBlob({ company, invoice, items }) {
 /** Generate the invoice PDF and trigger a browser download. */
 export async function downloadInvoicePdf({ company, invoice, items }) {
   const blob = await generateInvoicePdfBlob({ company, invoice, items });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.setAttribute('download', buildInvoiceFileName(invoice));
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  triggerFileDownload(blob, buildInvoiceFileName(invoice));
 }
 
 /**
