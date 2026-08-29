@@ -201,6 +201,15 @@ export default function InvoiceForm() {
 
   const addItem = () => setItems(prev => [...prev, emptyItem()]);
 
+  const duplicateLastItem = () => {
+    const source = items[items.length - 1] || emptyItem();
+    const nextIndex = items.length;
+    const duplicate = calcItem({ ...source }, isInterstate);
+    setItems(prev => [...prev, duplicate]);
+    setProductSearch(prev => ({ ...prev, [nextIndex]: duplicate.description || '' }));
+    setShowProductDropdown(prev => ({ ...prev, [nextIndex]: false }));
+  };
+
   const removeItem = (idx) => {
     if (items.length === 1) return;
     setItems(prev => prev.filter((_, i) => i !== idx));
@@ -443,7 +452,12 @@ export default function InvoiceForm() {
                         updateItem(idx, 'description', e.target.value);
                         setShowProductDropdown(prev => ({ ...prev, [idx]: true }));
                       }}
-                      onBlur={(e) => applyExactProductMatch(idx, e.target.value)}
+                      onBlur={(e) => {
+                        applyExactProductMatch(idx, e.target.value);
+                        setTimeout(() => {
+                          setShowProductDropdown(prev => ({ ...prev, [idx]: false }));
+                        }, 120);
+                      }}
                       onFocus={() => setShowProductDropdown(prev => ({ ...prev, [idx]: true }))}
                     />
                   </div>
@@ -573,10 +587,16 @@ export default function InvoiceForm() {
           })}
         </div>
 
-        <button type="button" onClick={addItem}
-          className="mt-4 text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1">
-          <Plus className="w-4 h-4" /> Add another item
-        </button>
+        <div className="mt-4 flex flex-col sm:flex-row gap-2">
+          <button type="button" onClick={addItem}
+            className="btn-secondary justify-center sm:justify-start text-sm flex items-center gap-1">
+            <Plus className="w-4 h-4" /> Add another item
+          </button>
+          <button type="button" onClick={duplicateLastItem}
+            className="btn-secondary justify-center sm:justify-start text-sm flex items-center gap-1">
+            <Plus className="w-4 h-4" /> Duplicate last row
+          </button>
+        </div>
       </div>
 
       {/* Totals */}

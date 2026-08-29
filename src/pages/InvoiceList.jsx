@@ -4,7 +4,7 @@ import api from '../api/axios';
 import toast from 'react-hot-toast';
 import { Plus, Search, FileDown, Eye, Edit, Trash2, MessageCircle, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
-import { buildInvoiceFileName, downloadInvoicePdf, generateInvoicePdfBlob, shareInvoicePdf } from '../utils/invoicePdf';
+import { buildInvoiceFileName, downloadInvoicePdf, generateInvoicePdfBlob } from '../utils/invoicePdf';
 import { useAuth } from '../context/AuthContext';
 
 const statusColors = {
@@ -181,26 +181,50 @@ export default function InvoiceList() {
     }
   };
 
+  const downloadGeneratedPdfFiles = (files) => {
+    files.forEach((file) => {
+      const url = URL.createObjectURL(file);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = file.name;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    });
+  };
+
   const shareSelectedOnWhatsApp = async () => {
     if (orderedSelectedInvoices.length === 0) return toast.error('Select invoices first.');
     setSharing(true);
     try {
-      if (orderedSelectedInvoices.length === 1) {
-        const { data } = await api.get(`/invoices/${orderedSelectedInvoices[0].id}`);
-        if (!data.success) throw new Error('Invoice load failed');
-        const msg = `Dear ${data.invoice.party_name || 'Customer'},\n\nYour invoice *${data.invoice.invoice_no}* for *₹${parseFloat(data.invoice.grand_total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}* is ready.\n\nThank you!`;
-        const shared = await shareInvoicePdf({ company, invoice: data.invoice, items: data.items }, msg);
-        if (!shared) {
-          const phone = String(data.invoice.party_mobile || '').replace(/\D/g, '');
-          const waPhone = phone.length === 10 ? `91${phone}` : phone;
-          window.open(`https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`, '_blank');
-        }
+      const files = [];
+      for (let i = 0; i < orderedSelectedInvoices.length; i += 1) {
+        const inv = orderedSelectedInvoices[i];
+        toast.loading(`Preparing PDF ${i + 1}/${orderedSelectedInvoices.length}: ${inv.invoice_no}`, { id: 'share-pdf' });
+        const { data } = await api.get(`/invoices/${inv.id}`);
+        if (!data.success) throw new Error(`Invoice ${inv.invoice_no} load failed`);
+        const blob = await generateInvoicePdfBlob({ company, invoice: data.invoice, items: data.items });
+        files.push(new File([blob], buildInvoiceFileName(data.invoice), { type: 'application/pdf' }));
+      }
+
+      if (typeof navigator !== 'undefined' && navigator.canShare && navigator.share && navigator.canShare({ files })) {
+        await navigator.share({
+          files,
+          title: orderedSelectedInvoices.length === 1 ? `Invoice ${orderedSelectedInvoices[0].invoice_no}` : `${orderedSelectedInvoices.length} invoices`,
+        });
+        toast.success('PDF share ready.', { id: 'share-pdf' });
         return;
       }
-      const lines = orderedSelectedInvoices.map((inv) => `- ${inv.invoice_no} | ${inv.party_name || 'Party'} | ₹${parseFloat(inv.grand_total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
-      window.open(`https://wa.me/?text=${encodeURIComponent(`Selected invoices in order:\n\n${lines.join('\n')}`)}`, '_blank');
+
+      downloadGeneratedPdfFiles(files);
+      toast.error('This browser cannot attach PDFs directly to WhatsApp. PDFs downloaded.', { id: 'share-pdf', duration: 5000 });
     } catch (err) {
-      toast.error(err.message || 'Failed to share invoices.');
+      if (err?.name === 'AbortError') {
+        toast.success('PDF share cancelled.', { id: 'share-pdf' });
+      } else {
+        toast.error(err.message || 'Failed to share invoice PDFs.', { id: 'share-pdf' });
+      }
     } finally {
       setSharing(false);
     }
