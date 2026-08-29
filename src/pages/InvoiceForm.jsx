@@ -381,43 +381,63 @@ export default function InvoiceForm() {
         </div>
       </div>
 
-      {/* Items Table */}
-      <div className="card overflow-x-auto">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold" style={{color:'var(--text)'}}>Items</h3>
-          <button type="button" onClick={addItem} className="btn-secondary flex items-center gap-1 text-sm">
+      {/* Items */}
+      <div className="card">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div>
+            <h3 className="font-semibold" style={{color:'var(--text)'}}>Items</h3>
+            <p className="text-xs mt-0.5" style={{color:'var(--text-3)'}}>Product select karte hi HSN, unit, GST aur saved rate auto fill hoga.</p>
+          </div>
+          <button type="button" onClick={addItem} className="btn-secondary flex items-center gap-1 text-sm whitespace-nowrap">
             <Plus className="w-4 h-4" /> Add Row
           </button>
         </div>
 
-        <table className="w-full text-sm min-w-[900px]">
-          <thead>
-            <tr style={{backgroundColor:'var(--bg-muted)', borderBottom:'1px solid var(--border)'}}>
-              <th className="text-left px-2 py-2 text-xs font-semibold w-8" style={{color:'var(--text-3)'}}>#</th>
-              <th className="text-left px-2 py-2 text-xs font-semibold min-w-[200px]" style={{color:'var(--text-3)'}}>Description</th>
-              <th className="text-left px-2 py-2 text-xs font-semibold w-20" style={{color:'var(--text-3)'}}>HSN</th>
-              <th className="text-right px-2 py-2 text-xs font-semibold w-20" style={{color:'var(--text-3)'}}>Qty</th>
-              <th className="text-left px-2 py-2 text-xs font-semibold w-20" style={{color:'var(--text-3)'}}>Unit</th>
-              <th className="text-right px-2 py-2 text-xs font-semibold w-24" style={{color:'var(--text-3)'}}>Rate</th>
-              <th className="text-right px-2 py-2 text-xs font-semibold w-24" style={{color:'var(--text-3)'}}>Discount</th>
-              <th className="text-right px-2 py-2 text-xs font-semibold w-20" style={{color:'var(--text-3)'}}>GST%</th>
-              <th className="text-right px-2 py-2 text-xs font-semibold w-28" style={{color:'var(--text-3)'}}>Total</th>
-              <th className="w-8"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item, idx) => (
-              <tr key={idx} style={{borderBottom:'1px solid var(--border)'}}>
-                <td className="px-2 py-1.5 text-xs" style={{color:'var(--text-3)'}}>{idx + 1}</td>
+        <div className="hidden lg:grid grid-cols-[42px_minmax(250px,2fr)_90px_90px_96px_132px_118px_92px_132px_42px] gap-2 px-3 py-2 rounded-xl text-xs font-semibold uppercase"
+          style={{backgroundColor:'var(--bg-muted)', color:'var(--text-3)', border:'1px solid var(--border)'}}>
+          <span>#</span>
+          <span>Product</span>
+          <span>HSN</span>
+          <span className="text-right">Qty</span>
+          <span>Unit</span>
+          <span className="text-right">Rate</span>
+          <span className="text-right">Discount</span>
+          <span className="text-right">GST</span>
+          <span className="text-right">Line Total</span>
+          <span></span>
+        </div>
 
-                {/* Description with product search */}
-                <td className="px-2 py-1.5">
+        <div className="space-y-3 mt-3">
+          {items.map((item, idx) => {
+            const productQuery = productSearch[idx] !== undefined ? productSearch[idx] : item.description;
+            const filteredProducts = products
+              .filter(p => p.name.toLowerCase().includes((productQuery || '').toLowerCase()))
+              .slice(0, 8);
+            const priceMissing = (!item.rate || parseFloat(item.rate) === 0) && item.description;
+
+            return (
+              <div key={idx} className="rounded-xl border p-3 lg:grid lg:grid-cols-[42px_minmax(250px,2fr)_90px_90px_96px_132px_118px_92px_132px_42px] lg:items-start gap-2"
+                style={{borderColor:'var(--border)', backgroundColor:'var(--bg-muted)'}}>
+                <div className="flex items-start justify-between gap-3 lg:block">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold"
+                    style={{backgroundColor:'var(--bg-card)', color:'var(--text-3)', border:'1px solid var(--border)'}}>
+                    {idx + 1}
+                  </div>
+                  <div className="text-right lg:hidden">
+                    <p className="text-xs" style={{color:'var(--text-3)'}}>Total</p>
+                    <p className="font-bold" style={{color:'var(--text)'}}>₹{(item.total_sale || 0).toFixed(2)}</p>
+                  </div>
+                </div>
+
+                <div className="relative mt-3 lg:mt-0">
+                  <label className="label lg:hidden">Product / Item</label>
                   <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{color:'var(--text-3)'}} />
                     <input
                       type="text"
-                      className="input-field text-xs py-1.5"
-                      placeholder="Search or type product..."
-                      value={productSearch[idx] !== undefined ? productSearch[idx] : item.description}
+                      className="input-field input-with-icon"
+                      placeholder="Search product or type item..."
+                      value={productQuery}
                       onChange={(e) => {
                         setProductSearch(prev => ({ ...prev, [idx]: e.target.value }));
                         updateItem(idx, 'description', e.target.value);
@@ -426,123 +446,135 @@ export default function InvoiceForm() {
                       onBlur={(e) => applyExactProductMatch(idx, e.target.value)}
                       onFocus={() => setShowProductDropdown(prev => ({ ...prev, [idx]: true }))}
                     />
-                    {showProductDropdown[idx] && (
-                      <div className="absolute z-20 w-64 mt-1 rounded-lg shadow-lg max-h-40 overflow-y-auto"
-                        style={{backgroundColor:'var(--bg-card)', border:'1px solid var(--border)'}}>
-                        {products
-                          .filter(p => p.name.toLowerCase().includes((productSearch[idx] || item.description || '').toLowerCase()))
-                          .slice(0, 8)
-                          .map(p => (
-                            <button
-                              key={p.id}
-                              type="button"
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                selectProduct(idx, p);
-                              }}
-                              className="w-full text-left px-3 py-1.5 text-xs"
-                              style={{color:'var(--text)'}}
-                              onMouseEnter={e => e.currentTarget.style.backgroundColor='var(--bg-hover)'}
-                              onMouseLeave={e => e.currentTarget.style.backgroundColor='transparent'}
-                            >
-                              <div className="font-medium">{p.name}</div>
-                              <div style={{color:'var(--text-3)'}}>₹{p.default_rate} - {p.unit} - {p.gst_rate}% GST</div>
-                            </button>
-                          ))}
-                      </div>
-                    )}
                   </div>
-                </td>
+                  {showProductDropdown[idx] && (
+                    <div className="absolute z-30 left-0 right-0 lg:w-80 mt-1 rounded-xl shadow-lg max-h-56 overflow-y-auto"
+                      style={{backgroundColor:'var(--bg-card)', border:'1px solid var(--border)'}}>
+                      {filteredProducts.length === 0 ? (
+                        <div className="px-3 py-2 text-sm" style={{color:'var(--text-3)'}}>No matching product</div>
+                      ) : filteredProducts.map(p => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            selectProduct(idx, p);
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm"
+                          style={{color:'var(--text)'}}
+                          onMouseEnter={e => e.currentTarget.style.backgroundColor='var(--bg-hover)'}
+                          onMouseLeave={e => e.currentTarget.style.backgroundColor='transparent'}
+                        >
+                          <div className="font-medium">{p.name}</div>
+                          <div className="text-xs mt-0.5" style={{color:'var(--text-3)'}}>
+                            ₹{p.default_rate || 0} / {p.unit || 'Pcs'} • HSN {p.hsn_code || '-'} • GST {productGstRate(p)}%
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
-                <td className="px-2 py-1.5">
-                  <input type="text" className="input-field text-xs py-1.5 w-full"
-                    value={item.hsn_code} onChange={(e) => updateItem(idx, 'hsn_code', e.target.value)} />
-                </td>
-
-                <td className="px-2 py-1.5">
-                  <input type="number" className="input-field text-xs py-1.5 text-right"
-                    value={item.qty} min="0" step="0.001"
-                    onChange={(e) => updateItem(idx, 'qty', e.target.value)} />
-                </td>
-
-                <td className="px-2 py-1.5">
-                  <select className="input-field text-xs py-1.5"
-                    value={item.unit} onChange={(e) => updateItem(idx, 'unit', e.target.value)}>
-                    {['Pcs', 'KG', 'Gm', 'Ltr', 'Box', 'Bag', 'Dozen', 'Meter'].map(u => (
-                      <option key={u} value={u}>{u}</option>
-                    ))}
-                  </select>
-                </td>
-
-                <td className="px-2 py-1.5">
-                  <div className="relative">
-                    <input
-                      type="number"
-                      className={`input-field text-xs py-1.5 text-right pr-1 ${
-                        (!item.rate || parseFloat(item.rate) === 0)
-                          ? 'border-orange-400 placeholder-orange-400 focus:ring-orange-400'
-                          : item.rate_is_fixed
-                          ? 'border-green-300'
-                          : ''
-                      }`}
-                      style={
-                        (!item.rate || parseFloat(item.rate) === 0)
-                          ? {backgroundColor:'rgba(251,146,60,0.1)'}
-                          : item.rate_is_fixed
-                          ? {backgroundColor:'rgba(34,197,94,0.08)'}
-                          : {}
-                      }
-                      placeholder="Enter price"
-                      value={item.rate}
-                      min="0"
-                      step="0.01"
-                      onChange={(e) => updateItem(idx, 'rate', e.target.value)}
-                    />
-                    {item.rate_is_fixed && parseFloat(item.rate) > 0 && (
-                      <span className="absolute -top-2 -right-1 text-[9px] bg-green-500 text-white px-1 rounded leading-tight">
-                        fixed
-                      </span>
-                    )}
-                    {(!item.rate || parseFloat(item.rate) === 0) && item.description && (
-                      <span className="absolute -top-2 -right-1 text-[9px] bg-orange-500 text-white px-1 rounded leading-tight">
-                        price?
-                      </span>
-                    )}
+                <div className="grid grid-cols-2 gap-2 mt-3 lg:contents">
+                  <div>
+                    <label className="label lg:hidden">HSN</label>
+                    <input type="text" className="input-field"
+                      value={item.hsn_code} onChange={(e) => updateItem(idx, 'hsn_code', e.target.value)} />
                   </div>
-                </td>
 
-                <td className="px-2 py-1.5">
-                  <input type="number" className="input-field text-xs py-1.5 text-right"
-                    value={item.discount} min="0" step="0.01"
-                    onChange={(e) => updateItem(idx, 'discount', e.target.value)} />
-                </td>
+                  <div>
+                    <label className="label lg:hidden">Qty</label>
+                    <input type="number" className="input-field text-right font-semibold"
+                      value={item.qty} min="0" step="0.001"
+                      onChange={(e) => updateItem(idx, 'qty', e.target.value)} />
+                  </div>
 
-                <td className="px-2 py-1.5">
-                  <select className="input-field text-xs py-1.5"
-                    value={item.gst_rate} onChange={(e) => updateItem(idx, 'gst_rate', e.target.value)}>
-                    {[0, 5, 12, 18, 28].map(r => (
-                      <option key={r} value={r}>{r}%</option>
-                    ))}
-                  </select>
-                </td>
+                  <div>
+                    <label className="label lg:hidden">Unit</label>
+                    <select className="input-field"
+                      value={item.unit} onChange={(e) => updateItem(idx, 'unit', e.target.value)}>
+                      {['Pcs', 'KG', 'Gm', 'Ltr', 'Box', 'Bag', 'Dozen', 'Meter'].map(u => (
+                        <option key={u} value={u}>{u}</option>
+                      ))}
+                    </select>
+                  </div>
 
-                <td className="px-2 py-1.5 text-right font-medium text-xs" style={{color:'var(--text)'}}>
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="label lg:hidden">Rate</label>
+                      {item.rate_is_fixed && parseFloat(item.rate) > 0 && (
+                        <span className="text-[10px] font-semibold text-green-600 lg:hidden">Saved</span>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{color:'var(--text-3)'}}>₹</span>
+                      <input
+                        type="number"
+                        className={`input-field input-with-currency text-right font-semibold ${
+                          priceMissing
+                            ? 'border-orange-400 placeholder-orange-400 focus:ring-orange-400'
+                            : item.rate_is_fixed
+                            ? 'border-green-300'
+                            : ''
+                        }`}
+                        style={
+                          priceMissing
+                            ? {backgroundColor:'rgba(251,146,60,0.1)'}
+                            : item.rate_is_fixed
+                            ? {backgroundColor:'rgba(34,197,94,0.08)'}
+                            : {}
+                        }
+                        placeholder="0.00"
+                        value={item.rate}
+                        min="0"
+                        step="0.01"
+                        onChange={(e) => updateItem(idx, 'rate', e.target.value)}
+                      />
+                    </div>
+                    {priceMissing && <p className="text-[11px] mt-1 text-orange-500">Price missing</p>}
+                  </div>
+
+                  <div>
+                    <label className="label lg:hidden">Discount</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{color:'var(--text-3)'}}>₹</span>
+                      <input type="number" className="input-field input-with-currency text-right"
+                        value={item.discount} min="0" step="0.01"
+                        onChange={(e) => updateItem(idx, 'discount', e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="label lg:hidden">GST %</label>
+                    <select className="input-field text-right"
+                      value={item.gst_rate} onChange={(e) => updateItem(idx, 'gst_rate', e.target.value)}>
+                      {[0, 5, 12, 18, 28].map(r => (
+                        <option key={r} value={r}>{r}%</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="hidden lg:block text-right pt-2 font-bold" style={{color:'var(--text)'}}>
                   ₹{(item.total_sale || 0).toFixed(2)}
-                </td>
+                  <p className="text-[11px] font-normal mt-1" style={{color:'var(--text-3)'}}>
+                    Taxable ₹{(item.taxable_amount || 0).toFixed(2)}
+                  </p>
+                </div>
 
-                <td className="px-2 py-1.5">
-                  <button type="button" onClick={() => removeItem(idx)}
-                    className="text-red-400 hover:text-red-600 p-1">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                <button type="button" onClick={() => removeItem(idx)}
+                  disabled={items.length === 1}
+                  className="mt-3 lg:mt-1 w-full lg:w-9 h-9 rounded-lg flex items-center justify-center text-red-500 hover:text-red-600 disabled:opacity-40"
+                  style={{backgroundColor:'var(--bg-card)', border:'1px solid var(--border)'}}>
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
 
         <button type="button" onClick={addItem}
-          className="mt-3 text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1">
+          className="mt-4 text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1">
           <Plus className="w-4 h-4" /> Add another item
         </button>
       </div>
