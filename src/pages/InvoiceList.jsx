@@ -35,11 +35,6 @@ const compareInvoicesByNumber = (a, b) => {
   return left.id - right.id;
 };
 
-const buildOrderedShareFileName = (invoice, index, total) => {
-  const width = String(Math.max(total, 9)).length;
-  return `${String(index + 1).padStart(width, '0')} ${buildInvoiceFileName(invoice)}`;
-};
-
 export default function InvoiceList() {
   const navigate = useNavigate();
   const { company } = useAuth();
@@ -179,40 +174,34 @@ export default function InvoiceList() {
     }
   };
 
-  const downloadGeneratedPdfFiles = (files) => {
-    files.forEach((file) => {
-      triggerFileDownload(file, file.name);
-    });
-  };
-
   const shareSelectedOnWhatsApp = async () => {
     if (orderedSelectedInvoices.length === 0) return toast.error('Select invoices first.');
     setSharing(true);
     try {
-      const files = [];
       for (let i = 0; i < orderedSelectedInvoices.length; i += 1) {
         const inv = orderedSelectedInvoices[i];
         toast.loading(`Preparing PDF ${i + 1}/${orderedSelectedInvoices.length}: ${inv.invoice_no}`, { id: 'share-pdf' });
         const { data } = await api.get(`/invoices/${inv.id}`);
         if (!data.success) throw new Error(`Invoice ${inv.invoice_no} load failed`);
         const blob = await generateInvoicePdfBlob({ company, invoice: data.invoice, items: data.items });
-        files.push(new File([blob], buildOrderedShareFileName(data.invoice, i, orderedSelectedInvoices.length), { type: 'application/pdf' }));
+        const file = new File([blob], buildInvoiceFileName(data.invoice), { type: 'application/pdf' });
+
+        if (typeof navigator !== 'undefined' && navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
+          toast.loading(`Share ${i + 1}/${orderedSelectedInvoices.length}: ${data.invoice.invoice_no}`, { id: 'share-pdf' });
+          await navigator.share({
+            files: [file],
+            title: `Invoice ${data.invoice.invoice_no || ''}`.trim(),
+          });
+          continue;
+        }
+
+        triggerFileDownload(file, file.name);
       }
 
-      if (typeof navigator !== 'undefined' && navigator.canShare && navigator.share && navigator.canShare({ files })) {
-        await navigator.share({
-          files,
-          title: orderedSelectedInvoices.length === 1 ? `Invoice ${orderedSelectedInvoices[0].invoice_no}` : `${orderedSelectedInvoices.length} invoices`,
-        });
-        toast.success('PDF share ready.', { id: 'share-pdf' });
-        return;
-      }
-
-      downloadGeneratedPdfFiles(files);
-      toast.error('This browser cannot attach PDFs directly to WhatsApp. PDFs downloaded.', { id: 'share-pdf', duration: 5000 });
+      toast.success(`${orderedSelectedInvoices.length} PDF(s) processed in order.`, { id: 'share-pdf' });
     } catch (err) {
       if (err?.name === 'AbortError') {
-        toast.success('PDF share cancelled.', { id: 'share-pdf' });
+        toast.success('PDF sharing stopped.', { id: 'share-pdf' });
       } else {
         toast.error(err.message || 'Failed to share invoice PDFs.', { id: 'share-pdf' });
       }
