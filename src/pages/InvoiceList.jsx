@@ -49,6 +49,8 @@ export default function InvoiceList() {
   const [bulkDownloading, setBulkDownloading] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [shareQueue, setShareQueue] = useState([]);
+  const [shareIndex, setShareIndex] = useState(0);
 
   useEffect(() => {
     fetchInvoices();
@@ -149,6 +151,12 @@ export default function InvoiceList() {
   const clearSelection = () => {
     setSelectedIds([]);
     setSelectedById({});
+    closeShareQueue();
+  };
+
+  const closeShareQueue = () => {
+    setShareQueue([]);
+    setShareIndex(0);
   };
 
   const downloadSelectedPdfs = async () => {
@@ -174,10 +182,11 @@ export default function InvoiceList() {
     }
   };
 
-  const shareSelectedOnWhatsApp = async () => {
+  const prepareSelectedPdfShare = async () => {
     if (orderedSelectedInvoices.length === 0) return toast.error('Select invoices first.');
     setSharing(true);
     try {
+      const queue = [];
       for (let i = 0; i < orderedSelectedInvoices.length; i += 1) {
         const inv = orderedSelectedInvoices[i];
         toast.loading(`Preparing PDF ${i + 1}/${orderedSelectedInvoices.length}: ${inv.invoice_no}`, { id: 'share-pdf' });
@@ -185,28 +194,44 @@ export default function InvoiceList() {
         if (!data.success) throw new Error(`Invoice ${inv.invoice_no} load failed`);
         const blob = await generateInvoicePdfBlob({ company, invoice: data.invoice, items: data.items });
         const file = new File([blob], buildInvoiceFileName(data.invoice), { type: 'application/pdf' });
-
-        if (typeof navigator !== 'undefined' && navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
-          toast.loading(`Share ${i + 1}/${orderedSelectedInvoices.length}: ${data.invoice.invoice_no}`, { id: 'share-pdf' });
-          await navigator.share({
-            files: [file],
-            title: `Invoice ${data.invoice.invoice_no || ''}`.trim(),
-          });
-          continue;
-        }
-
-        triggerFileDownload(file, file.name);
+        queue.push({ invoiceNo: data.invoice.invoice_no, partyName: data.invoice.party_name || '', file });
       }
-
-      toast.success(`${orderedSelectedInvoices.length} PDF(s) processed in order.`, { id: 'share-pdf' });
+      setShareQueue(queue);
+      setShareIndex(0);
+      toast.success(`${queue.length} PDF(s) ready. Share one by one.`, { id: 'share-pdf' });
     } catch (err) {
-      if (err?.name === 'AbortError') {
-        toast.success('PDF sharing stopped.', { id: 'share-pdf' });
-      } else {
-        toast.error(err.message || 'Failed to share invoice PDFs.', { id: 'share-pdf' });
-      }
+      toast.error(err.message || 'Failed to prepare invoice PDFs.', { id: 'share-pdf' });
     } finally {
       setSharing(false);
+    }
+  };
+
+  const shareCurrentPdf = async () => {
+    const current = shareQueue[shareIndex];
+    if (!current) return closeShareQueue();
+    try {
+      if (typeof navigator !== 'undefined' && navigator.canShare && navigator.share && navigator.canShare({ files: [current.file] })) {
+        await navigator.share({
+          files: [current.file],
+          title: `Invoice ${current.invoiceNo || ''}`.trim(),
+        });
+      } else {
+        triggerFileDownload(current.file, current.file.name);
+        toast.error('This browser cannot attach PDF directly. PDF downloaded.', { duration: 4000 });
+      }
+
+      if (shareIndex + 1 >= shareQueue.length) {
+        toast.success('All selected PDFs completed.');
+        closeShareQueue();
+      } else {
+        setShareIndex((prev) => prev + 1);
+      }
+    } catch (err) {
+      if (err?.name === 'AbortError') {
+        toast.error('Share cancelled. Tap Share current PDF to retry or skip.');
+      } else {
+        toast.error(err.message || 'Failed to share this PDF.');
+      }
     }
   };
 
@@ -447,7 +472,7 @@ export default function InvoiceList() {
           </button>
           <button
             type="button"
-            onClick={shareSelectedOnWhatsApp}
+            onClick={prepareSelectedPdfShare}
             disabled={bulkDownloading || bulkDeleting || sharing}
             title="Share on WhatsApp"
             className="w-12 h-12 rounded-xl flex items-center justify-center text-green-600 disabled:opacity-50"
@@ -467,6 +492,42 @@ export default function InvoiceList() {
           </button>
           <div className="pl-2 pr-1 text-xs font-semibold whitespace-nowrap" style={{ color: 'var(--text-3)' }}>
             {bulkDownloading ? 'Preparing...' : bulkDeleting ? 'Deleting...' : sharing ? 'Sharing...' : `${selectedIds.length} selected`}
+          </div>
+        </div>
+      )}
+
+      {shareQueue.length > 0 && (
+        <div className="fixed inset-x-3 bottom-24 z-50 mx-auto max-w-md rounded-2xl border p-4 shadow-2xl"
+          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase" style={{ color: 'var(--text-3)' }}>
+                PDF {shareIndex + 1} of {shareQueue.length}
+              </p>
+              <p className="mt-1 font-bold truncate" style={{ color: 'var(--text)' }}>
+                {shareQueue[shareIndex]?.invoiceNo}
+              </p>
+              {shareQueue[shareIndex]?.partyName && (
+                <p className="text-sm truncate" style={{ color: 'var(--text-3)' }}>{shareQueue[shareIndex].partyName}</p>
+              )}
+            </div>
+            <button type="button" onClick={closeShareQueue}
+              className="w-9 h-9 rounded-lg flex items-center justify-center"
+              style={{ backgroundColor: 'var(--bg-hover)', color: 'var(--text-3)' }}>
+              <XCircle className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <button type="button" onClick={shareCurrentPdf}
+              className="btn-success flex-1 justify-center">
+              <MessageCircle className="w-4 h-4" /> Share current PDF
+            </button>
+            {shareQueue.length > 1 && shareIndex + 1 < shareQueue.length && (
+              <button type="button" onClick={() => setShareIndex((prev) => prev + 1)}
+                className="btn-secondary justify-center">
+                Skip
+              </button>
+            )}
           </div>
         </div>
       )}
