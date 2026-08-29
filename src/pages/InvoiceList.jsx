@@ -13,6 +13,28 @@ const statusColors = {
   paid: 'bg-green-100 text-green-700',
 };
 
+const getInvoiceSortKey = (invoice) => {
+  const invoiceNo = String(invoice?.invoice_no || '');
+  const numberParts = invoiceNo.match(/\d+/g);
+  const sequence = numberParts?.length ? Number(numberParts[numberParts.length - 1]) : Number.MAX_SAFE_INTEGER;
+  return {
+    sequence: Number.isFinite(sequence) ? sequence : Number.MAX_SAFE_INTEGER,
+    date: invoice?.invoice_date || '',
+    invoiceNo,
+    id: Number(invoice?.id || 0),
+  };
+};
+
+const compareInvoicesByNumber = (a, b) => {
+  const left = getInvoiceSortKey(a);
+  const right = getInvoiceSortKey(b);
+  if (left.sequence !== right.sequence) return left.sequence - right.sequence;
+  if (left.date !== right.date) return left.date.localeCompare(right.date);
+  const invoiceNoCompare = left.invoiceNo.localeCompare(right.invoiceNo, undefined, { numeric: true, sensitivity: 'base' });
+  if (invoiceNoCompare !== 0) return invoiceNoCompare;
+  return left.id - right.id;
+};
+
 export default function InvoiceList() {
   const navigate = useNavigate();
   const { company } = useAuth();
@@ -88,6 +110,7 @@ export default function InvoiceList() {
   };
 
   const selectedInvoices = selectedIds.map((id) => selectedById[id]).filter(Boolean);
+  const orderedSelectedInvoices = [...selectedInvoices].sort(compareInvoicesByNumber);
   const allCurrentPageSelected = invoices.length > 0 && invoices.every((inv) => selectedIds.includes(inv.id));
 
   const toggleInvoice = (inv) => {
@@ -129,14 +152,13 @@ export default function InvoiceList() {
   };
 
   const downloadSelectedPdfs = async () => {
-    if (selectedIds.length === 0) return toast.error('Select invoices first.');
+    if (orderedSelectedInvoices.length === 0) return toast.error('Select invoices first.');
     setBulkDownloading(true);
     try {
-      for (let i = 0; i < selectedIds.length; i += 1) {
-        const id = selectedIds[i];
-        const inv = selectedById[id] || { id, invoice_no: `#${id}` };
-        toast.loading(`Preparing ${i + 1}/${selectedIds.length}: ${inv.invoice_no}`, { id: 'bulk-pdf' });
-        const { data } = await api.get(`/invoices/${id}`);
+      for (let i = 0; i < orderedSelectedInvoices.length; i += 1) {
+        const inv = orderedSelectedInvoices[i];
+        toast.loading(`Preparing ${i + 1}/${orderedSelectedInvoices.length}: ${inv.invoice_no}`, { id: 'bulk-pdf' });
+        const { data } = await api.get(`/invoices/${inv.id}`);
         if (!data.success) throw new Error(`Invoice ${inv.invoice_no} load failed`);
         const blob = await generateInvoicePdfBlob({ company, invoice: data.invoice, items: data.items });
 
@@ -151,7 +173,7 @@ export default function InvoiceList() {
 
         await new Promise((resolve) => setTimeout(resolve, 250));
       }
-      toast.success(`${selectedIds.length} PDFs downloaded.`, { id: 'bulk-pdf' });
+      toast.success(`${orderedSelectedInvoices.length} PDFs downloaded.`, { id: 'bulk-pdf' });
     } catch (err) {
       toast.error(err.message || 'Failed to download selected invoices.', { id: 'bulk-pdf' });
     } finally {
@@ -160,12 +182,11 @@ export default function InvoiceList() {
   };
 
   const shareSelectedOnWhatsApp = async () => {
-    if (selectedIds.length === 0) return toast.error('Select invoices first.');
+    if (orderedSelectedInvoices.length === 0) return toast.error('Select invoices first.');
     setSharing(true);
     try {
-      if (selectedIds.length === 1) {
-        const id = selectedIds[0];
-        const { data } = await api.get(`/invoices/${id}`);
+      if (orderedSelectedInvoices.length === 1) {
+        const { data } = await api.get(`/invoices/${orderedSelectedInvoices[0].id}`);
         if (!data.success) throw new Error('Invoice load failed');
         const msg = `Dear ${data.invoice.party_name || 'Customer'},\n\nYour invoice *${data.invoice.invoice_no}* for *₹${parseFloat(data.invoice.grand_total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}* is ready.\n\nThank you!`;
         const shared = await shareInvoicePdf({ company, invoice: data.invoice, items: data.items }, msg);
@@ -176,8 +197,8 @@ export default function InvoiceList() {
         }
         return;
       }
-      const lines = selectedInvoices.map((inv, idx) => `${idx + 1}. ${inv.invoice_no} - ${inv.party_name || 'Party'} - ₹${parseFloat(inv.grand_total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
-      window.open(`https://wa.me/?text=${encodeURIComponent(`Selected invoices:\n\n${lines.join('\n')}`)}`, '_blank');
+      const lines = orderedSelectedInvoices.map((inv) => `- ${inv.invoice_no} | ${inv.party_name || 'Party'} | ₹${parseFloat(inv.grand_total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+      window.open(`https://wa.me/?text=${encodeURIComponent(`Selected invoices in order:\n\n${lines.join('\n')}`)}`, '_blank');
     } catch (err) {
       toast.error(err.message || 'Failed to share invoices.');
     } finally {
@@ -186,17 +207,16 @@ export default function InvoiceList() {
   };
 
   const deleteSelectedInvoices = async () => {
-    if (selectedIds.length === 0) return toast.error('Select invoices first.');
-    if (!confirm(`Delete/cancel ${selectedIds.length} selected invoice(s)?`)) return;
+    if (orderedSelectedInvoices.length === 0) return toast.error('Select invoices first.');
+    if (!confirm(`Delete/cancel ${orderedSelectedInvoices.length} selected invoice(s)?`)) return;
     setBulkDeleting(true);
     try {
-      for (let i = 0; i < selectedIds.length; i += 1) {
-        const id = selectedIds[i];
-        const inv = selectedById[id] || { invoice_no: `#${id}` };
-        toast.loading(`Deleting ${i + 1}/${selectedIds.length}: ${inv.invoice_no}`, { id: 'bulk-delete' });
-        await api.delete(`/invoices/${id}`);
+      for (let i = 0; i < orderedSelectedInvoices.length; i += 1) {
+        const inv = orderedSelectedInvoices[i];
+        toast.loading(`Deleting ${i + 1}/${orderedSelectedInvoices.length}: ${inv.invoice_no}`, { id: 'bulk-delete' });
+        await api.delete(`/invoices/${inv.id}`);
       }
-      toast.success(`${selectedIds.length} invoice(s) deleted.`, { id: 'bulk-delete' });
+      toast.success(`${orderedSelectedInvoices.length} invoice(s) deleted.`, { id: 'bulk-delete' });
       clearSelection();
       fetchInvoices();
     } catch (err) {
