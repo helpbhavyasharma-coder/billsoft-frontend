@@ -35,6 +35,11 @@ const compareInvoicesByNumber = (a, b) => {
   return left.id - right.id;
 };
 
+const buildOrderedShareFileName = (invoice, index, total) => {
+  const width = String(Math.max(total, 9)).length;
+  return `${String(index + 1).padStart(width, '0')} ${buildInvoiceFileName(invoice)}`;
+};
+
 export default function InvoiceList() {
   const navigate = useNavigate();
   const { company } = useAuth();
@@ -191,7 +196,7 @@ export default function InvoiceList() {
         const { data } = await api.get(`/invoices/${inv.id}`);
         if (!data.success) throw new Error(`Invoice ${inv.invoice_no} load failed`);
         const blob = await generateInvoicePdfBlob({ company, invoice: data.invoice, items: data.items });
-        files.push(new File([blob], buildInvoiceFileName(data.invoice), { type: 'application/pdf' }));
+        files.push(new File([blob], buildOrderedShareFileName(data.invoice, i, orderedSelectedInvoices.length), { type: 'application/pdf' }));
       }
 
       if (typeof navigator !== 'undefined' && navigator.canShare && navigator.share && navigator.canShare({ files })) {
