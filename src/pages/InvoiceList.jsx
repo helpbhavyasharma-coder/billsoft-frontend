@@ -2,9 +2,9 @@
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
-import { Plus, Search, FileDown, Eye, Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, FileDown, Eye, Edit, Trash2, MessageCircle, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
-import { buildInvoiceFileName, downloadInvoicePdf, generateInvoicePdfBlob } from '../utils/invoicePdf';
+import { buildInvoiceFileName, downloadInvoicePdf, generateInvoicePdfBlob, shareInvoicePdf } from '../utils/invoicePdf';
 import { useAuth } from '../context/AuthContext';
 
 const statusColors = {
@@ -23,7 +23,10 @@ export default function InvoiceList() {
   const [pagination, setPagination] = useState({ total: 0, page: 1, pages: 1 });
   const [downloading, setDownloading] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
+  const [selectedById, setSelectedById] = useState({});
   const [bulkDownloading, setBulkDownloading] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     fetchInvoices();
@@ -42,7 +45,6 @@ export default function InvoiceList() {
       if (data.success) {
         setInvoices(data.invoices);
         setPagination(data.pagination);
-        setSelectedIds([]);
       }
     } catch {
       toast.error('Failed to load invoices.');
@@ -58,6 +60,12 @@ export default function InvoiceList() {
       toast.success(`Invoice ${inv.invoice_no} deleted.`);
       // Remove from local state immediately for instant UI update
       setInvoices(prev => prev.filter(i => i.id !== inv.id));
+      setSelectedIds(prev => prev.filter(id => id !== inv.id));
+      setSelectedById(prev => {
+        const next = { ...prev };
+        delete next[inv.id];
+        return next;
+      });
       // Also refresh from server
       fetchInvoices();
     } catch {
@@ -79,25 +87,56 @@ export default function InvoiceList() {
     }
   };
 
-  const selectedInvoices = invoices.filter((inv) => selectedIds.includes(inv.id));
-  const allCurrentPageSelected = invoices.length > 0 && selectedIds.length === invoices.length;
+  const selectedInvoices = selectedIds.map((id) => selectedById[id]).filter(Boolean);
+  const allCurrentPageSelected = invoices.length > 0 && invoices.every((inv) => selectedIds.includes(inv.id));
 
-  const toggleInvoice = (id) => {
-    setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  const toggleInvoice = (inv) => {
+    setSelectedIds((prev) => {
+      if (prev.includes(inv.id)) return prev.filter((x) => x !== inv.id);
+      return [...prev, inv.id];
+    });
+    setSelectedById((prev) => {
+      if (prev[inv.id]) {
+        const next = { ...prev };
+        delete next[inv.id];
+        return next;
+      }
+      return { ...prev, [inv.id]: inv };
+    });
   };
 
   const toggleCurrentPage = () => {
-    setSelectedIds(allCurrentPageSelected ? [] : invoices.map((inv) => inv.id));
+    if (allCurrentPageSelected) {
+      const currentIds = new Set(invoices.map((inv) => inv.id));
+      setSelectedIds((prev) => prev.filter((id) => !currentIds.has(id)));
+      setSelectedById((prev) => {
+        const next = { ...prev };
+        invoices.forEach((inv) => delete next[inv.id]);
+        return next;
+      });
+      return;
+    }
+    setSelectedIds((prev) => Array.from(new Set([...prev, ...invoices.map((inv) => inv.id)])));
+    setSelectedById((prev) => ({
+      ...prev,
+      ...Object.fromEntries(invoices.map((inv) => [inv.id, inv])),
+    }));
+  };
+
+  const clearSelection = () => {
+    setSelectedIds([]);
+    setSelectedById({});
   };
 
   const downloadSelectedPdfs = async () => {
-    if (selectedInvoices.length === 0) return toast.error('Select invoices first.');
+    if (selectedIds.length === 0) return toast.error('Select invoices first.');
     setBulkDownloading(true);
     try {
-      for (let i = 0; i < selectedInvoices.length; i += 1) {
-        const inv = selectedInvoices[i];
-        toast.loading(`Preparing ${i + 1}/${selectedInvoices.length}: ${inv.invoice_no}`, { id: 'bulk-pdf' });
-        const { data } = await api.get(`/invoices/${inv.id}`);
+      for (let i = 0; i < selectedIds.length; i += 1) {
+        const id = selectedIds[i];
+        const inv = selectedById[id] || { id, invoice_no: `#${id}` };
+        toast.loading(`Preparing ${i + 1}/${selectedIds.length}: ${inv.invoice_no}`, { id: 'bulk-pdf' });
+        const { data } = await api.get(`/invoices/${id}`);
         if (!data.success) throw new Error(`Invoice ${inv.invoice_no} load failed`);
         const blob = await generateInvoicePdfBlob({ company, invoice: data.invoice, items: data.items });
 
@@ -112,7 +151,7 @@ export default function InvoiceList() {
 
         await new Promise((resolve) => setTimeout(resolve, 250));
       }
-      toast.success(`${selectedInvoices.length} PDFs downloaded.`, { id: 'bulk-pdf' });
+      toast.success(`${selectedIds.length} PDFs downloaded.`, { id: 'bulk-pdf' });
     } catch (err) {
       toast.error(err.message || 'Failed to download selected invoices.', { id: 'bulk-pdf' });
     } finally {
@@ -120,20 +159,71 @@ export default function InvoiceList() {
     }
   };
 
+  const shareSelectedOnWhatsApp = async () => {
+    if (selectedIds.length === 0) return toast.error('Select invoices first.');
+    setSharing(true);
+    try {
+      if (selectedIds.length === 1) {
+        const id = selectedIds[0];
+        const { data } = await api.get(`/invoices/${id}`);
+        if (!data.success) throw new Error('Invoice load failed');
+        const msg = `Dear ${data.invoice.party_name || 'Customer'},\n\nYour invoice *${data.invoice.invoice_no}* for *₹${parseFloat(data.invoice.grand_total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}* is ready.\n\nThank you!`;
+        const shared = await shareInvoicePdf({ company, invoice: data.invoice, items: data.items }, msg);
+        if (!shared) {
+          const phone = String(data.invoice.party_mobile || '').replace(/\D/g, '');
+          const waPhone = phone.length === 10 ? `91${phone}` : phone;
+          window.open(`https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+        }
+        return;
+      }
+      const lines = selectedInvoices.map((inv, idx) => `${idx + 1}. ${inv.invoice_no} - ${inv.party_name || 'Party'} - ₹${parseFloat(inv.grand_total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+      window.open(`https://wa.me/?text=${encodeURIComponent(`Selected invoices:\n\n${lines.join('\n')}`)}`, '_blank');
+    } catch (err) {
+      toast.error(err.message || 'Failed to share invoices.');
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const deleteSelectedInvoices = async () => {
+    if (selectedIds.length === 0) return toast.error('Select invoices first.');
+    if (!confirm(`Delete/cancel ${selectedIds.length} selected invoice(s)?`)) return;
+    setBulkDeleting(true);
+    try {
+      for (let i = 0; i < selectedIds.length; i += 1) {
+        const id = selectedIds[i];
+        const inv = selectedById[id] || { invoice_no: `#${id}` };
+        toast.loading(`Deleting ${i + 1}/${selectedIds.length}: ${inv.invoice_no}`, { id: 'bulk-delete' });
+        await api.delete(`/invoices/${id}`);
+      }
+      toast.success(`${selectedIds.length} invoice(s) deleted.`, { id: 'bulk-delete' });
+      clearSelection();
+      fetchInvoices();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete selected invoices.', { id: 'bulk-delete' });
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold" style={{color:'var(--text)'}}>Invoices</h1>
-        <div className="flex items-center gap-2">
-          {selectedIds.length > 0 && (
-            <button onClick={downloadSelectedPdfs} disabled={bulkDownloading} className="btn-secondary flex items-center gap-2 text-sm">
-              <FileDown className="w-4 h-4" /> {bulkDownloading ? 'Preparing...' : `Download ${selectedIds.length} PDFs`}
+      <div className="flex items-center justify-between gap-3">
+        {selectedIds.length > 0 ? (
+          <>
+            <h1 className="text-lg font-bold" style={{color:'var(--text)'}}>{selectedIds.length} selected</h1>
+            <button onClick={clearSelection} className="btn-secondary inline-flex items-center gap-2 text-sm whitespace-nowrap">
+              <XCircle className="w-4 h-4" /> Deselect All
             </button>
-          )}
+          </>
+        ) : (
+          <>
+            <h1 className="text-xl font-bold" style={{color:'var(--text)'}}>Invoices</h1>
           <Link to="/invoices/new" className="btn-primary flex items-center gap-2 text-sm">
             <Plus className="w-4 h-4" /> New Invoice
           </Link>
-        </div>
+          </>
+        )}
       </div>
 
       {/* Filters */}
@@ -201,7 +291,7 @@ export default function InvoiceList() {
                               onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                             >
                               <td className="table-cell text-center">
-                                <input type="checkbox" checked={selectedIds.includes(inv.id)} onChange={() => toggleInvoice(inv.id)} />
+                                <input type="checkbox" checked={selectedIds.includes(inv.id)} onChange={() => toggleInvoice(inv)} />
                               </td>
                               <td className="table-cell">
                                 <Link to={`/invoices/${inv.id}`} className="font-medium text-blue-500 hover:text-blue-400">{inv.invoice_no}</Link>
@@ -244,7 +334,7 @@ export default function InvoiceList() {
                   {/* Top row: invoice no + status + amount */}
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <input type="checkbox" checked={selectedIds.includes(inv.id)} onChange={() => toggleInvoice(inv.id)} />
+                      <input type="checkbox" checked={selectedIds.includes(inv.id)} onChange={() => toggleInvoice(inv)} />
                       <Link to={`/invoices/${inv.id}`}
                         className="font-bold text-blue-600 text-sm">{inv.invoice_no}</Link>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-semibold
@@ -317,6 +407,45 @@ export default function InvoiceList() {
           </div>
         )}
       </div>
+
+      {selectedIds.length > 0 && (
+        <div className="fixed left-1/2 -translate-x-1/2 bottom-5 z-50 px-3 py-2 rounded-2xl shadow-2xl border flex items-center gap-2"
+          style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}>
+          <button
+            type="button"
+            onClick={downloadSelectedPdfs}
+            disabled={bulkDownloading || bulkDeleting || sharing}
+            title="Download selected invoices"
+            className="w-12 h-12 rounded-xl flex items-center justify-center text-blue-600 disabled:opacity-50"
+            style={{ backgroundColor: 'rgba(37,99,235,0.12)' }}
+          >
+            <FileDown className="w-5 h-5" />
+          </button>
+          <button
+            type="button"
+            onClick={shareSelectedOnWhatsApp}
+            disabled={bulkDownloading || bulkDeleting || sharing}
+            title="Share on WhatsApp"
+            className="w-12 h-12 rounded-xl flex items-center justify-center text-green-600 disabled:opacity-50"
+            style={{ backgroundColor: 'rgba(22,163,74,0.12)' }}
+          >
+            <MessageCircle className="w-5 h-5" />
+          </button>
+          <button
+            type="button"
+            onClick={deleteSelectedInvoices}
+            disabled={bulkDownloading || bulkDeleting || sharing}
+            title="Delete selected invoices"
+            className="w-12 h-12 rounded-xl flex items-center justify-center text-red-600 disabled:opacity-50"
+            style={{ backgroundColor: 'rgba(220,38,38,0.12)' }}
+          >
+            <Trash2 className="w-5 h-5" />
+          </button>
+          <div className="pl-2 pr-1 text-xs font-semibold whitespace-nowrap" style={{ color: 'var(--text-3)' }}>
+            {bulkDownloading ? 'Preparing...' : bulkDeleting ? 'Deleting...' : sharing ? 'Sharing...' : `${selectedIds.length} selected`}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

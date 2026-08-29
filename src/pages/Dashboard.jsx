@@ -21,7 +21,8 @@ export default function Dashboard() {
   const { company } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [year, setYear] = useState(new Date().getFullYear());
+  const currentFyStart = new Date().getMonth() >= 3 ? new Date().getFullYear() : new Date().getFullYear() - 1;
+  const [year, setYear] = useState(currentFyStart);
 
   useEffect(() => { fetchDashboard(); }, [year]);
 
@@ -44,6 +45,7 @@ export default function Dashboard() {
   );
 
   const years = [2024, 2025, 2026, 2027];
+  const fyLabel = `${year}-${String(Number(year) + 1).slice(2)}`;
 
   return (
     <div className="space-y-5">
@@ -66,16 +68,16 @@ export default function Dashboard() {
           </div>
           <p className="text-sm mt-0.5" style={{color:'var(--text-3)'}}>{format(new Date(), 'EEEE, dd MMMM yyyy')}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <select
-            className="input-field w-28 text-sm"
+            className="input-field w-24 sm:w-28 text-sm"
             value={year}
             onChange={(e) => setYear(e.target.value)}
           >
             {years.map(y => <option key={y} value={y}>{y}-{String(y+1).slice(2)}</option>)}
           </select>
-          <Link to="/invoices/new" className="btn-primary flex items-center gap-2 text-sm">
-            <Plus className="w-4 h-4" /> New Invoice
+          <Link to="/invoices/new" className="btn-primary inline-flex items-center justify-center gap-1.5 text-sm whitespace-nowrap px-3 py-2 min-w-fit">
+            <Plus className="w-4 h-4 flex-shrink-0" /> <span>New Invoice</span>
           </Link>
         </div>
       </div>
@@ -135,7 +137,7 @@ export default function Dashboard() {
 
       {/* Sales Chart */}
       <div className="card">
-        <h2 className="font-semibold mb-4" style={{color:'var(--text)'}}>Monthly Sales - {year}</h2>
+        <h2 className="font-semibold mb-4" style={{color:'var(--text)'}}>Monthly Sales - {fyLabel}</h2>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={data?.monthly_chart || []} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -157,7 +159,7 @@ export default function Dashboard() {
         <div className="card">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-semibold" style={{color:'var(--text)'}}>Top Customers</h2>
-            <span className="text-xs" style={{color:'var(--text-3)'}}>{year}</span>
+            <span className="text-xs" style={{color:'var(--text-3)'}}>{fyLabel}</span>
           </div>
           {data?.top_customers?.length === 0 ? (
             <p className="text-sm text-center py-4" style={{color:'var(--text-3)'}}>No data yet</p>
@@ -182,7 +184,7 @@ export default function Dashboard() {
         <div className="card">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-semibold" style={{color:'var(--text)'}}>Top Products</h2>
-            <span className="text-xs" style={{color:'var(--text-3)'}}>{year}</span>
+            <span className="text-xs" style={{color:'var(--text-3)'}}>{fyLabel}</span>
           </div>
           {data?.top_products?.length === 0 ? (
             <p className="text-sm text-center py-4" style={{color:'var(--text-3)'}}>No data yet</p>
