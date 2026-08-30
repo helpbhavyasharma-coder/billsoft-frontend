@@ -2,18 +2,13 @@
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { FileText, Users, TrendingUp, AlertCircle, Plus, ArrowRight, IndianRupee, Package, Clock } from 'lucide-react';
+import { FileText, Users, TrendingUp, AlertCircle, Plus, ArrowRight, IndianRupee, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import { getBusinessType } from '../data/businessTypes';
-
-const statusColors = {
-  unpaid: 'bg-red-100 text-red-700',
-  partial: 'bg-yellow-100 text-yellow-700',
-  paid: 'bg-green-100 text-green-700',
-};
+import { EmptyState, LoadingState, Money, PageHeader, StatCard, StatusBadge } from '../components/ui';
 
 const fmt = (n) => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -38,37 +33,27 @@ export default function Dashboard() {
     }
   };
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full" />
-    </div>
-  );
+  if (loading) return <LoadingState label="Loading dashboard..." />;
 
-  const years = [2024, 2025, 2026, 2027];
+  const years = [2023, 2024, 2025, 2026, 2027];
   const fyLabel = `${year}-${String(Number(year) + 1).slice(2)}`;
 
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-2xl font-bold" style={{color:'var(--text)'}}>
-              {company?.company_name || 'Dashboard'}
-            </h1>
-            {company?.business_type && (() => {
-              const bt = getBusinessType(company.business_type);
-              return (
-                <span className="text-sm px-2 py-0.5 rounded-full font-medium"
-                  style={{ backgroundColor: 'rgba(37,99,235,0.1)', color: '#2563eb' }}>
-                  {bt.icon} {bt.name}
-                </span>
-              );
-            })()}
-          </div>
-          <p className="text-sm mt-0.5" style={{color:'var(--text-3)'}}>{format(new Date(), 'EEEE, dd MMMM yyyy')}</p>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3">
+      <PageHeader
+        title={company?.company_name || 'Dashboard'}
+        subtitle={`${format(new Date(), 'EEEE, dd MMMM yyyy')} | FY ${fyLabel}`}
+        meta={company?.business_type && (() => {
+          const bt = getBusinessType(company.business_type);
+          return (
+            <span className="status-badge status-neutral">
+              <span className="mr-1">{bt.name}</span>
+            </span>
+          );
+        })()}
+        actions={(
+          <>
           <select
             className="input-field w-24 sm:w-28 text-sm"
             value={year}
@@ -79,47 +64,19 @@ export default function Dashboard() {
           <Link to="/invoices/new" className="btn-primary inline-flex items-center justify-center gap-1.5 text-sm whitespace-nowrap px-3 py-2 min-w-fit">
             <Plus className="w-4 h-4 flex-shrink-0" /> <span>New Invoice</span>
           </Link>
-        </div>
-      </div>
+          </>
+        )}
+      />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="card">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-medium" style={{color:'var(--text-3)'}}>This Month</p>
-            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-              <TrendingUp className="w-4 h-4 text-blue-600" />
-            </div>
-          </div>
-          <p className="text-xl font-bold" style={{color:'var(--text)'}}>₹{fmt(data?.this_month?.total)}</p>
-          <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>{data?.this_month?.count || 0} invoices</p>
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard label="This Month" value={<Money value={data?.this_month?.total} />} helper={`${data?.this_month?.count || 0} invoices`} icon={TrendingUp} />
+        <StatCard label="Year Total" value={<Money value={data?.year_total?.total} />} helper={`${data?.year_total?.count || 0} invoices`} icon={IndianRupee} tone="success" />
+        <StatCard label="Outstanding" value={<Money value={data?.outstanding?.total} />} helper={`${data?.outstanding?.count || 0} parties`} icon={AlertCircle} tone="danger" />
 
         <div className="card">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-medium" style={{color:'var(--text-3)'}}>Year Total</p>
-            <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-              <IndianRupee className="w-4 h-4 text-green-600" />
-            </div>
-          </div>
-          <p className="text-xl font-bold" style={{color:'var(--text)'}}>₹{fmt(data?.year_total?.total)}</p>
-          <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>{data?.year_total?.count || 0} invoices</p>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-medium" style={{color:'var(--text-3)'}}>Outstanding</p>
-            <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
-              <AlertCircle className="w-4 h-4 text-red-600" />
-            </div>
-          </div>
-          <p className="text-xl font-bold text-red-600">₹{fmt(data?.outstanding?.total)}</p>
-          <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>{data?.outstanding?.count || 0} parties</p>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-medium" style={{color:'var(--text-3)'}}>Quick Links</p>
+            <p className="stat-label">Quick Links</p>
           </div>
           <div className="space-y-1.5">
             <Link to="/invoices/new" className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium">
@@ -162,7 +119,7 @@ export default function Dashboard() {
             <span className="text-xs" style={{color:'var(--text-3)'}}>{fyLabel}</span>
           </div>
           {data?.top_customers?.length === 0 ? (
-            <p className="text-sm text-center py-4" style={{color:'var(--text-3)'}}>No data yet</p>
+            <EmptyState title="No customers yet" description="Invoices in this financial year will appear here." />
           ) : (
             <div className="space-y-2">
               {data?.top_customers?.map((c, idx) => (
@@ -187,7 +144,7 @@ export default function Dashboard() {
             <span className="text-xs" style={{color:'var(--text-3)'}}>{fyLabel}</span>
           </div>
           {data?.top_products?.length === 0 ? (
-            <p className="text-sm text-center py-4" style={{color:'var(--text-3)'}}>No data yet</p>
+            <EmptyState title="No product sales yet" description="Sold products for this financial year will appear here." />
           ) : (
             <div className="space-y-2">
               {data?.top_products?.map((p, idx) => (
@@ -251,11 +208,7 @@ export default function Dashboard() {
                       </td>
                       <td className="table-cell text-right font-medium" style={{color:'var(--text)'}}>₹{fmt(inv.grand_total)}</td>
                       <td className="table-cell text-center">
-                        <span className={`text-xs px-2 py-1 rounded-full font-semibold
-                          ${inv.payment_status === 'paid' ? 'badge-paid' :
-                            inv.payment_status === 'partial' ? 'badge-partial' : 'badge-unpaid'}`}>
-                          {inv.payment_status}
-                        </span>
+                        <StatusBadge status={inv.payment_status} />
                       </td>
                       <td className="table-cell text-center">
                         <Link to={`/invoices/${inv.id}`} className="text-blue-600 hover:text-blue-700 text-xs font-medium">View</Link>
@@ -274,11 +227,7 @@ export default function Dashboard() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="font-bold text-blue-600 text-sm">{inv.invoice_no}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold
-                          ${inv.payment_status === 'paid' ? 'badge-paid' :
-                            inv.payment_status === 'partial' ? 'badge-partial' : 'badge-unpaid'}`}>
-                          {inv.payment_status}
-                        </span>
+                        <StatusBadge status={inv.payment_status} />
                       </div>
                       <p className="text-sm font-medium truncate" style={{color:'var(--text)'}}>{inv.party_name}</p>
                       <p className="text-xs mt-0.5" style={{color:'var(--text-3)'}}>
@@ -301,32 +250,32 @@ export default function Dashboard() {
         if (!bt.comingSoon || bt.comingSoon.length === 0) return null;
 
         const comingSoonLabels = {
-          barcode: 'ðŸ“¦ Barcode Scan',
-          expiry: 'â° Expiry Tracking',
-          weight: 'âš–ï¸ Weight Products',
-          supplier: 'ðŸ­ Supplier Ledger',
-          warranty: 'ðŸ›¡ï¸ Warranty Tracking',
-          serial: 'ðŸ”¢ Serial Number',
-          repair: 'ðŸ”§ Repair Tracking',
-          emi: 'ðŸ’³ EMI / Finance',
-          size: 'ðŸ“ Size Management',
-          color: 'ðŸŽ¨ Color Variants',
-          return: 'â†©ï¸ Return/Exchange',
-          combo: 'ðŸŽ Combo Offers',
-          student: 'ðŸ‘¨â€ðŸŽ“ Student Ledger',
-          batch: 'ðŸ“… Batch Management',
-          attendance: 'âœ… Attendance',
-          fee_reminder: 'ðŸ”” Fee Reminder',
-          imei: 'ðŸ“± IMEI Tracking',
-          exchange: 'ðŸ”„ Exchange Records',
-          prescription: 'ðŸ’Š Prescription',
-          schedule: 'ðŸ“‹ Schedule Medicine',
-          batch_no: 'ðŸ·ï¸ Batch Number',
-          table: 'ðŸ½ï¸ Table Management',
-          kot: 'ðŸ“ KOT System',
-          recipe: 'ðŸ‘¨â€ðŸ³ Recipe Cost',
-          appointment: 'ðŸ“† Appointments',
-          service_history: 'ðŸ“œ Service History',
+          barcode: 'Barcode Scan',
+          expiry: 'Expiry Tracking',
+          weight: 'Weight Products',
+          supplier: 'Supplier Ledger',
+          warranty: 'Warranty Tracking',
+          serial: 'Serial Number',
+          repair: 'Repair Tracking',
+          emi: 'EMI / Finance',
+          size: 'Size Management',
+          color: 'Color Variants',
+          return: 'Return / Exchange',
+          combo: 'Combo Offers',
+          student: 'Student Ledger',
+          batch: 'Batch Management',
+          attendance: 'Attendance',
+          fee_reminder: 'Fee Reminder',
+          imei: 'IMEI Tracking',
+          exchange: 'Exchange Records',
+          prescription: 'Prescription',
+          schedule: 'Schedule Medicine',
+          batch_no: 'Batch Number',
+          table: 'Table Management',
+          kot: 'KOT System',
+          recipe: 'Recipe Cost',
+          appointment: 'Appointments',
+          service_history: 'Service History',
         };
 
         return (
@@ -334,7 +283,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2 mb-3">
               <Clock className="w-4 h-4 text-yellow-500" />
               <h2 className="font-semibold text-sm" style={{ color: 'var(--text)' }}>
-                Coming Soon for {bt.icon} {bt.name}
+                Coming Soon for {bt.name}
               </h2>
             </div>
             <div className="flex flex-wrap gap-2">

@@ -91,7 +91,7 @@ export default function AdminPanel() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>🛡️ Admin Panel</h1>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Admin Panel</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-3)' }}>Platform overview — all users & companies</p>
         </div>
         <button onClick={fetchAll} className="btn-secondary flex items-center gap-2 text-sm">

@@ -2,6 +2,7 @@
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import { AlertCircle, Phone, FileText, FileSpreadsheet, Download } from 'lucide-react';
+import { EmptyState, LoadingState, Money, PageHeader } from '../components/ui';
 
 const fmt = (n) => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
 
@@ -109,9 +110,11 @@ export default function Outstanding() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3 no-print">
-        <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Outstanding Report</h1>
-        <div className="flex items-center gap-2 flex-wrap">
+      <PageHeader
+        title="Outstanding Report"
+        subtitle="Party-wise unpaid amount, paid amount and reminder actions."
+        actions={(
+          <>
           {!loading && data.length > 0 && (
             <>
               <button onClick={downloadCsv} className="btn-secondary flex items-center gap-2 text-sm">
@@ -125,10 +128,11 @@ export default function Outstanding() {
           <div className="px-4 py-2 text-sm rounded-xl"
             style={{ backgroundColor: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.3)' }}>
             <span className="text-red-500 font-medium">Total Outstanding: </span>
-            <span className="text-red-500 font-bold text-base">₹{fmt(total)}</span>
+            <span className="text-red-500 font-bold text-base"><Money value={total} /></span>
           </div>
-        </div>
-      </div>
+          </>
+        )}
+      />
 
       <div className="print-area card p-0 overflow-hidden">
         {!loading && data.length > 0 && (
@@ -139,15 +143,13 @@ export default function Outstanding() {
           </div>
         )}
         {loading ? (
-          <div className="flex items-center justify-center h-48">
-            <div className="animate-spin w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full" />
-          </div>
+          <LoadingState label="Loading outstanding dues..." />
         ) : data.length === 0 ? (
-          <div className="text-center py-16">
-            <AlertCircle className="w-10 h-10 text-green-400 mx-auto mb-3" />
-            <p className="font-medium" style={{ color: 'var(--text-2)' }}>No outstanding dues!</p>
-            <p className="text-sm mt-1" style={{ color: 'var(--text-3)' }}>All invoices are paid.</p>
-          </div>
+          <EmptyState
+            icon={AlertCircle}
+            title="No outstanding dues"
+            description="All invoices are paid for the current report."
+          />
         ) : (
           <>
             {/* Desktop Table */}
@@ -251,13 +253,13 @@ export default function Outstanding() {
                   {/* Action buttons */}
                   <div className="flex gap-2">
                     <Link to={`/parties/${row.party_id}/ledger`}
-                      className="flex-1 text-center text-xs font-medium py-1.5 rounded-lg"
+                      className="flex-1 text-center text-xs font-semibold py-2 rounded-lg"
                       style={{backgroundColor:'rgba(59,130,246,0.1)', color:'#2563eb'}}>
                       View Ledger
                     </Link>
                     {row.mobile && (
                       <button onClick={() => whatsappReminder(row)}
-                        className="flex-1 text-center text-xs font-medium py-1.5 rounded-lg"
+                        className="flex-1 text-center text-xs font-semibold py-2 rounded-lg"
                         style={{backgroundColor:'rgba(34,197,94,0.1)', color:'#16a34a'}}>
                         WhatsApp
                       </button>

@@ -112,13 +112,13 @@ export default function CompanySetup() {
               ))}
             </div>
             {form.business_type && (
-              <div className="mt-3 p-3 rounded-xl text-sm" style={{ backgroundColor: 'rgba(37,99,235,0.06)', border: '1px solid rgba(37,99,235,0.2)' }}>
+              <div className="mt-3 p-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(37,99,235,0.06)', border: '1px solid rgba(37,99,235,0.2)' }}>
                 <span className="font-medium text-blue-600">
                   {BUSINESS_TYPES.find(b => b.id === form.business_type)?.icon}{' '}
                   {BUSINESS_TYPES.find(b => b.id === form.business_type)?.name}
                 </span>
                 <span className="ml-2" style={{ color: 'var(--text-3)' }}>
-                  â€” {BUSINESS_TYPES.find(b => b.id === form.business_type)?.description}
+                  - {BUSINESS_TYPES.find(b => b.id === form.business_type)?.description}
                 </span>
               </div>
             )}

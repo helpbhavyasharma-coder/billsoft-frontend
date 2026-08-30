@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
-import { History, Package, Plus, RefreshCw, Search, X } from 'lucide-react';
+import { AlertTriangle, History, Package, Plus, RefreshCw, X } from 'lucide-react';
+import { EmptyState, LoadingState, PageHeader, SearchField, StatCard } from '../components/ui';
 
 const qty = (n) => parseFloat(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 3 });
 const movementLabels = {
@@ -96,18 +97,20 @@ export default function Stock() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Stock Management</h1>
-        <div className="flex items-center gap-3">
-          <div className="text-sm" style={{ color: 'var(--text-3)' }}>{filtered.length} products</div>
+      <PageHeader
+        title="Stock Management"
+        subtitle={`${filtered.length} products | Purchased, sold, damaged, expired and manual adjustment history.`}
+        actions={(
+          <>
           <button onClick={() => setShowAdjustment(true)} className="btn-primary text-sm flex items-center gap-2">
             <Plus className="w-4 h-4" /> Adjustment
           </button>
           <button onClick={fetchStock} className="btn-secondary text-sm flex items-center gap-2">
             <RefreshCw className="w-4 h-4" /> Sync
           </button>
-        </div>
-      </div>
+          </>
+        )}
+      />
 
       {showAdjustment && (
         <form onSubmit={saveAdjustment} className="card grid md:grid-cols-6 gap-3 items-end">
@@ -147,18 +150,15 @@ export default function Stock() {
       )}
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
-        <div className="card py-3"><p className="text-xs" style={{ color: 'var(--text-3)' }}>Total Purchased</p><p className="text-lg font-bold text-green-600">{qty(totals.purchased)}</p></div>
-        <div className="card py-3"><p className="text-xs" style={{ color: 'var(--text-3)' }}>Total Sold</p><p className="text-lg font-bold text-blue-600">{qty(totals.sold)}</p></div>
-        <div className="card py-3"><p className="text-xs" style={{ color: 'var(--text-3)' }}>Damage / Expiry</p><p className="text-lg font-bold text-orange-600">{qty(totals.damaged + totals.expired)}</p></div>
-        <div className="card py-3"><p className="text-xs" style={{ color: 'var(--text-3)' }}>Adjustment</p><p className={`text-lg font-bold ${totals.adjustment < 0 ? 'text-red-500' : 'text-green-600'}`}>{qty(totals.adjustment)}</p></div>
-        <div className="card py-3"><p className="text-xs" style={{ color: 'var(--text-3)' }}>Available Stock</p><p className={`text-lg font-bold ${totals.current < 0 ? 'text-red-500' : 'text-green-600'}`}>{qty(totals.current)}</p></div>
+        <StatCard label="Purchased" value={qty(totals.purchased)} tone="success" icon={Package} />
+        <StatCard label="Sold" value={qty(totals.sold)} icon={History} />
+        <StatCard label="Damage / Expiry" value={qty(totals.damaged + totals.expired)} tone="warning" icon={AlertTriangle} />
+        <StatCard label="Adjustment" value={qty(totals.adjustment)} tone={totals.adjustment < 0 ? 'danger' : 'success'} icon={RefreshCw} />
+        <StatCard label="Available" value={qty(totals.current)} tone={totals.current < 0 ? 'danger' : 'success'} icon={Package} />
       </div>
 
       <div className="card grid md:grid-cols-2 gap-3 py-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-3)' }} />
-          <input className="input-field input-with-icon" placeholder="Search product..." value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
+        <SearchField value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search product..." onClear={() => setSearch('')} />
         <select className="input-field" value={category} onChange={(e) => setCategory(e.target.value)}>
           <option value="">All Categories</option>
           {categories.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -166,14 +166,14 @@ export default function Stock() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center h-48"><div className="animate-spin w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full" /></div>
+        <LoadingState label="Loading stock..." />
       ) : filtered.length === 0 ? (
-        <div className="card text-center py-16"><Package className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--border)' }} /><p style={{ color: 'var(--text-3)' }}>No stock found.</p></div>
+        <div className="card p-0"><EmptyState icon={Package} title="No stock found" description="Try changing the search/category filter or add products first." /></div>
       ) : (
         Object.entries(grouped).map(([cat, items]) => (
           <div key={cat} className="card p-0 overflow-hidden">
             <div className="px-4 py-3 font-bold" style={{ color: 'var(--text)', borderBottom: '1px solid var(--border)', backgroundColor: 'var(--bg-muted)' }}>{cat}</div>
-            <div className="overflow-x-auto">
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)' }}>
@@ -206,6 +206,34 @@ export default function Stock() {
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div className="md:hidden p-3 space-y-2">
+              {items.map((item) => {
+                const available = parseFloat(item.current_stock || 0);
+                return (
+                  <div key={item.id} className="mobile-card">
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="min-w-0">
+                        <p className="font-bold truncate" style={{ color: 'var(--text)' }}>{item.name}</p>
+                        <p className="text-xs" style={{ color: 'var(--text-3)' }}>{item.unit || 'Unit'} | {cat}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs" style={{ color: 'var(--text-3)' }}>Available</p>
+                        <p className={`font-black ${available <= 0 ? 'text-red-600' : 'text-green-600'}`}>{qty(available)}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      <div className="stat-box"><p>Purchased</p><span className="text-green-600">{qty(item.purchased_qty)}</span></div>
+                      <div className="stat-box"><p>Sold</p><span className="text-blue-600">{qty(item.sold_qty)}</span></div>
+                      <div className="stat-box"><p>Damaged</p><span className="text-orange-600">{qty(item.damaged_qty)}</span></div>
+                      <div className="stat-box"><p>Expired</p><span className="text-red-600">{qty(item.expired_qty)}</span></div>
+                    </div>
+                    <button onClick={() => fetchMovements(item)} className="btn-secondary w-full text-sm">
+                      <History className="w-4 h-4" /> View Stock History
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         ))

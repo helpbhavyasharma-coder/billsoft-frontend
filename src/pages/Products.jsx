@@ -1,7 +1,8 @@
 ﻿import { useState, useEffect } from 'react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
-import { Plus, Search, Edit, Trash2, X, Package } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Package } from 'lucide-react';
+import { EmptyState, IconButton, LoadingState, Money, PageHeader, SearchField } from '../components/ui';
 
 const emptyForm = {
   name: '', hsn_code: '', unit: 'Pcs', default_rate: '', gst_rate: 5, category: '',
@@ -88,44 +89,37 @@ export default function Products() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold" style={{color:'var(--text)'}}>Products / Items</h1>
-        <button onClick={openAdd} className="btn-primary flex items-center gap-2 text-sm">
-          <Plus className="w-4 h-4" /> Add Product
-        </button>
-      </div>
+      <PageHeader
+        title="Products / Items"
+        subtitle={`${filtered.length} products | Saved rate, GST and HSN for faster billing.`}
+        actions={(
+          <button onClick={openAdd} className="btn-primary flex items-center gap-2 text-sm whitespace-nowrap">
+            <Plus className="w-4 h-4" /> Add Product
+          </button>
+        )}
+      />
 
       {/* Search */}
       <div className="card py-3">
-        <div className="relative">
-          <Search className="input-prefix absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            className="input-field input-with-icon"
-            placeholder="Search products..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="text-sm" style={{color:'var(--text-3)'}}>
-        {filtered.length} product{filtered.length !== 1 ? 's' : ''}
+        <SearchField
+          placeholder="Search products or HSN..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onClear={() => setSearch('')}
+        />
       </div>
 
       {/* Grid */}
       {loading ? (
-        <div className="flex items-center justify-center h-48">
-          <div className="animate-spin w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full" />
-        </div>
+        <LoadingState label="Loading products..." />
       ) : filtered.length === 0 ? (
-        <div className="card text-center py-16">
-          <Package className="w-10 h-10 mx-auto mb-3" style={{color:'var(--border)'}} />
-          <p className="mb-4" style={{color:'var(--text-3)'}}>No products found.</p>
-          <button onClick={openAdd} className="btn-primary inline-flex items-center gap-2 text-sm">
-            <Plus className="w-4 h-4" /> Add Product
-          </button>
+        <div className="card p-0">
+          <EmptyState
+            icon={Package}
+            title="No products found"
+            description={search ? 'Try a different product name or HSN.' : 'Add products with GST and saved rates to create invoices faster.'}
+            action={<button onClick={openAdd} className="btn-primary inline-flex items-center gap-2 text-sm"><Plus className="w-4 h-4" /> Add Product</button>}
+          />
         </div>
       ) : (
         <div className="card p-0 overflow-hidden">
@@ -154,7 +148,7 @@ export default function Products() {
                     <td className="table-cell text-center" style={{ color: 'var(--text-3)' }}>{product.unit}</td>
                     <td className="table-cell text-right font-medium">
                       {parseFloat(product.default_rate || 0) > 0 ? (
-                        <span className="text-green-500 font-semibold">₹{parseFloat(product.default_rate).toFixed(2)}</span>
+                        <span className="text-green-500 font-semibold"><Money value={product.default_rate} /></span>
                       ) : (
                         <span className="text-orange-500 text-xs font-medium">Not set</span>
                       )}
@@ -167,8 +161,8 @@ export default function Products() {
                     </td>
                     <td className="table-cell text-center">
                       <div className="flex items-center justify-center gap-2">
-                        <button onClick={() => openEdit(product)} className="hover:text-blue-500 transition-colors" style={{ color: 'var(--text-3)' }}><Edit className="w-4 h-4" /></button>
-                        <button onClick={() => handleDelete(product)} className="hover:text-red-500 transition-colors" style={{ color: 'var(--text-3)' }}><Trash2 className="w-4 h-4" /></button>
+                        <IconButton label={`Edit ${product.name}`} onClick={() => openEdit(product)}><Edit className="w-4 h-4" /></IconButton>
+                        <IconButton label={`Delete ${product.name}`} variant="danger" onClick={() => handleDelete(product)}><Trash2 className="w-4 h-4" /></IconButton>
                       </div>
                     </td>
                   </tr>
@@ -195,7 +189,7 @@ export default function Products() {
                   </div>
                   <div className="text-right flex-shrink-0">
                     {parseFloat(product.default_rate || 0) > 0 ? (
-                      <span className="text-sm font-bold text-green-600">₹{parseFloat(product.default_rate).toFixed(2)}</span>
+                      <span className="text-sm font-bold text-green-600"><Money value={product.default_rate} /></span>
                     ) : (
                       <span className="text-xs font-medium" style={{color:'var(--text-3)'}}>No price</span>
                     )}
@@ -203,12 +197,12 @@ export default function Products() {
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => openEdit(product)}
-                    className="flex-1 text-center text-xs font-medium py-1.5 rounded-lg"
+                    className="flex-1 text-center text-xs font-semibold py-2 rounded-lg"
                     style={{backgroundColor:'rgba(59,130,246,0.1)', color:'#2563eb'}}>
                     Edit
                   </button>
                   <button onClick={() => handleDelete(product)}
-                    className="flex-1 text-center text-xs font-medium py-1.5 rounded-lg"
+                    className="flex-1 text-center text-xs font-semibold py-2 rounded-lg"
                     style={{backgroundColor:'rgba(220,38,38,0.1)', color:'#dc2626'}}>
                     Delete
                   </button>

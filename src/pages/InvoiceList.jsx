@@ -2,16 +2,11 @@
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
-import { Plus, Search, FileDown, Eye, Edit, Trash2, MessageCircle, XCircle } from 'lucide-react';
+import { Plus, FileDown, Eye, Edit, Trash2, MessageCircle, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { buildInvoiceFileName, downloadInvoicePdf, generateInvoicePdfBlob, triggerFileDownload } from '../utils/invoicePdf';
 import { useAuth } from '../context/AuthContext';
-
-const statusColors = {
-  unpaid: 'bg-red-100 text-red-700',
-  partial: 'bg-yellow-100 text-yellow-700',
-  paid: 'bg-green-100 text-green-700',
-};
+import { EmptyState, IconButton, LoadingState, PageHeader, SearchField, StatusBadge } from '../components/ui';
 
 const getInvoiceSortKey = (invoice) => {
   const invoiceNo = String(invoice?.invoice_no || '');
@@ -257,37 +252,30 @@ export default function InvoiceList() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        {selectedIds.length > 0 ? (
-          <>
-            <h1 className="text-lg font-bold" style={{color:'var(--text)'}}>{selectedIds.length} selected</h1>
-            <button onClick={clearSelection} className="btn-secondary inline-flex items-center gap-2 text-sm whitespace-nowrap">
-              <XCircle className="w-4 h-4" /> Deselect All
-            </button>
-          </>
+      <PageHeader
+        title={selectedIds.length > 0 ? `${selectedIds.length} selected` : 'Invoices'}
+        subtitle={selectedIds.length > 0 ? 'Selected invoices are preserved while you search or move pages.' : 'Search, download, share and manage customer invoices.'}
+        actions={selectedIds.length > 0 ? (
+          <button onClick={clearSelection} className="btn-secondary inline-flex items-center gap-2 text-sm whitespace-nowrap">
+            <XCircle className="w-4 h-4" /> Deselect All
+          </button>
         ) : (
-          <>
-            <h1 className="text-xl font-bold" style={{color:'var(--text)'}}>Invoices</h1>
-          <Link to="/invoices/new" className="btn-primary flex items-center gap-2 text-sm">
+          <Link to="/invoices/new" className="btn-primary flex items-center gap-2 text-sm whitespace-nowrap">
             <Plus className="w-4 h-4" /> New Invoice
           </Link>
-          </>
         )}
-      </div>
+      />
 
       {/* Filters */}
       <div className="card py-3">
         <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="input-prefix absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-3)' }} />
-            <input
-              type="text"
-              className="input-field input-with-icon"
-              placeholder="Search invoice no. or party..."
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPagination(p => ({ ...p, page: 1 })); }}
-            />
-          </div>
+          <SearchField
+            className="flex-1"
+            placeholder="Search invoice no. or party..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPagination(p => ({ ...p, page: 1 })); }}
+            onClear={() => { setSearch(''); setPagination(p => ({ ...p, page: 1 })); }}
+          />
           <select
             className="input-field w-full sm:w-40"
             value={status}
@@ -304,16 +292,18 @@ export default function InvoiceList() {
       {/* Table */}
       <div className="card p-0 overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center h-48">
-            <div className="animate-spin w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full" />
-          </div>
+          <LoadingState label="Loading invoices..." />
         ) : invoices.length === 0 ? (
-          <div className="text-center py-16">
-            <p className="mb-4" style={{color:'var(--text-3)'}}>No invoices found.</p>
+          <EmptyState
+            icon={FileDown}
+            title="No invoices found"
+            description={search || status ? 'Try clearing filters or create a new invoice.' : 'Create your first invoice to start billing.'}
+            action={(
             <Link to="/invoices/new" className="btn-primary inline-flex items-center gap-2 text-sm">
               <Plus className="w-4 h-4" /> Create Invoice
             </Link>
-          </div>
+            )}
+          />
         ) : (
           <>
                     {/* Desktop Table */}
@@ -354,20 +344,18 @@ export default function InvoiceList() {
                                 ₹{parseFloat(inv.grand_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                               </td>
                               <td className="table-cell text-center">
-                                <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusColors[inv.payment_status] || 'bg-gray-100 text-gray-600'}`}>
-                                  {inv.payment_status}
-                                </span>
+                                <StatusBadge status={inv.payment_status} />
                               </td>
                               <td className="table-cell text-center">
                                 <div className="flex items-center justify-center gap-2">
-                                  <Link to={`/invoices/${inv.id}`} className="hover:text-blue-500 transition-colors" style={{ color: 'var(--text-3)' }}><Eye className="w-4 h-4" /></Link>
-                                  <Link to={`/invoices/${inv.id}/edit`} className="hover:text-green-500 transition-colors" style={{ color: 'var(--text-3)' }}><Edit className="w-4 h-4" /></Link>
-                                  <button onClick={() => downloadPDF(inv)} disabled={downloading === inv.id} className="hover:text-purple-500 transition-colors" style={{ color: 'var(--text-3)' }}>
+                                  <Link title="View invoice" aria-label={`View ${inv.invoice_no}`} to={`/invoices/${inv.id}`} className="icon-btn icon-btn-ghost"><Eye className="w-4 h-4" /></Link>
+                                  <Link title="Edit invoice" aria-label={`Edit ${inv.invoice_no}`} to={`/invoices/${inv.id}/edit`} className="icon-btn icon-btn-ghost"><Edit className="w-4 h-4" /></Link>
+                                  <IconButton label={`Download ${inv.invoice_no}`} onClick={() => downloadPDF(inv)} disabled={downloading === inv.id}>
                                     <FileDown className="w-4 h-4" />
-                                  </button>
-                                  <button onClick={() => deleteInvoice(inv)} className="hover:text-red-500 transition-colors" style={{ color: 'var(--text-3)' }}>
+                                  </IconButton>
+                                  <IconButton label={`Delete ${inv.invoice_no}`} variant="danger" onClick={() => deleteInvoice(inv)}>
                                     <Trash2 className="w-4 h-4" />
-                                  </button>
+                                  </IconButton>
                                 </div>
                               </td>
                             </tr>
@@ -386,11 +374,7 @@ export default function InvoiceList() {
                       <input type="checkbox" checked={selectedIds.includes(inv.id)} onChange={() => toggleInvoice(inv)} />
                       <Link to={`/invoices/${inv.id}`}
                         className="font-bold text-blue-600 text-sm">{inv.invoice_no}</Link>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold
-                        ${inv.payment_status === 'paid' ? 'badge-paid' :
-                          inv.payment_status === 'partial' ? 'badge-partial' : 'badge-unpaid'}`}>
-                        {inv.payment_status}
-                      </span>
+                      <StatusBadge status={inv.payment_status} />
                     </div>
                     <span className="font-bold text-sm flex-shrink-0" style={{color:'var(--text)'}}>
                       ₹{parseFloat(inv.grand_total).toLocaleString('en-IN', {minimumFractionDigits: 2})}
@@ -404,23 +388,23 @@ export default function InvoiceList() {
                   {/* Action buttons */}
                   <div className="flex items-center gap-2">
                     <Link to={`/invoices/${inv.id}`}
-                      className="flex-1 text-center text-xs font-medium py-1.5 rounded-lg"
+                      className="flex-1 text-center text-xs font-semibold py-2 rounded-lg"
                       style={{backgroundColor:'rgba(59,130,246,0.1)', color:'#2563eb'}}>
                       View
                     </Link>
                     <Link to={`/invoices/${inv.id}/edit`}
-                      className="flex-1 text-center text-xs font-medium py-1.5 rounded-lg"
+                      className="flex-1 text-center text-xs font-semibold py-2 rounded-lg"
                       style={{backgroundColor:'rgba(16,185,129,0.1)', color:'#059669'}}>
                       Edit
                     </Link>
                     <button onClick={(e) => { e.preventDefault(); downloadPDF(inv); }}
                       disabled={downloading === inv.id}
-                      className="flex-1 text-center text-xs font-medium py-1.5 rounded-lg"
+                      className="flex-1 text-center text-xs font-semibold py-2 rounded-lg"
                       style={{backgroundColor:'rgba(139,92,246,0.1)', color:'#7c3aed'}}>
                       {downloading === inv.id ? '...' : 'PDF'}
                     </button>
                     <button onClick={() => deleteInvoice(inv)}
-                      className="flex-1 text-center text-xs font-medium py-1.5 rounded-lg"
+                      className="flex-1 text-center text-xs font-semibold py-2 rounded-lg"
                       style={{backgroundColor:'rgba(220,38,38,0.1)', color:'#dc2626'}}>
                       Delete
                     </button>

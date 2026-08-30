@@ -6,12 +6,7 @@ import { Edit, FileDown, ArrowLeft, Plus, Trash2, X, Printer, Share2, RotateCcw 
 import { format } from 'date-fns';
 import { downloadInvoicePdf, shareInvoicePdf } from '../utils/invoicePdf';
 import { useAuth } from '../context/AuthContext';
-
-const statusColors = {
-  unpaid: 'bg-red-100 text-red-700',
-  partial: 'bg-yellow-100 text-yellow-700',
-  paid: 'bg-green-100 text-green-700',
-};
+import { EmptyState, IconButton, LoadingState, StatusBadge } from '../components/ui';
 
 const fmt = (n) => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
 
@@ -213,12 +208,8 @@ export default function InvoiceDetail() {
     } catch { toast.error('Failed to delete goods return.'); }
   };
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full" />
-    </div>
-  );
-  if (!invoice) return <div className="text-center py-12" style={{color:'var(--text-3)'}}>Invoice not found.</div>;
+  if (loading) return <LoadingState label="Loading invoice..." />;
+  if (!invoice) return <div className="card p-0"><EmptyState icon={FileDown} title="Invoice not found" description="The invoice may have been deleted or cancelled." /></div>;
 
   const returnedTotal = parseFloat(invoice.goods_return_total || 0);
   const outstanding = Math.max(parseFloat(invoice.grand_total) - parseFloat(invoice.amount_paid || 0) - returnedTotal, 0);
@@ -228,18 +219,16 @@ export default function InvoiceDetail() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/invoices')} style={{color:'var(--text-3)'}}>
+          <IconButton label="Back to invoices" onClick={() => navigate('/invoices')}>
             <ArrowLeft className="w-5 h-5" />
-          </button>
+          </IconButton>
           <div>
             <h1 className="text-xl font-bold" style={{color:'var(--text)'}}>{invoice.invoice_no}</h1>
             <p className="text-sm" style={{color:'var(--text-3)'}}>
               {invoice.invoice_date ? parseDate(invoice.invoice_date) ? format(parseDate(invoice.invoice_date), 'dd MMM yyyy') : '' : ''}
             </p>
           </div>
-          <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusColors[invoice.payment_status] || 'bg-gray-100 text-gray-600'}`}>
-            {invoice.payment_status}
-          </span>
+          <StatusBadge status={invoice.payment_status} />
         </div>
         <div className="flex gap-2 flex-wrap">
           {invoice.payment_status !== 'paid' && (

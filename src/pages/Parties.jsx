@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
-import { Plus, Search, Edit, Trash2, X, Phone, MapPin } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Phone } from 'lucide-react';
 import { INDIAN_STATES } from '../data/states';
 import { isValidGstinOrNA, normalizeGstin } from '../utils/gstin';
+import { EmptyState, IconButton, LoadingState, PageHeader, SearchField } from '../components/ui';
 
 const emptyForm = {
   name: '', address: '', city: '', state: '', mobile: '',
@@ -95,40 +96,36 @@ export default function Parties() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold" style={{color:'var(--text)'}}>Parties / Customers</h1>
-        <button onClick={openAdd} className="btn-primary flex items-center gap-2 text-sm">
-          <Plus className="w-4 h-4" /> Add Party
-        </button>
-      </div>
+      <PageHeader
+        title="Parties / Customers"
+        subtitle={`${parties.length} parties | Customers, suppliers, GST details and opening balance.`}
+        actions={(
+          <button onClick={openAdd} className="btn-primary flex items-center gap-2 text-sm whitespace-nowrap">
+            <Plus className="w-4 h-4" /> Add Party
+          </button>
+        )}
+      />
 
       {/* Search */}
       <div className="card py-3">
-        <div className="relative">
-          <Search className="input-prefix absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            className="input-field input-with-icon"
-            placeholder="Search by name, mobile, GST..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+        <SearchField
+          placeholder="Search by name, mobile, GST..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onClear={() => setSearch('')}
+        />
       </div>
 
       {/* List */}
       <div className="card p-0 overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center h-48">
-            <div className="animate-spin w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full" />
-          </div>
+          <LoadingState label="Loading parties..." />
         ) : parties.length === 0 ? (
-          <div className="text-center py-16">
-            <p className="text-gray-500 dark:text-gray-400 mb-4">No parties found.</p>
-            <button onClick={openAdd} className="btn-primary inline-flex items-center gap-2 text-sm">
-              <Plus className="w-4 h-4" /> Add Party
-            </button>
-          </div>
+          <EmptyState
+            title="No parties found"
+            description={search ? 'Try a different name, mobile number or GST number.' : 'Add customers and suppliers to create invoices and ledgers faster.'}
+            action={<button onClick={openAdd} className="btn-primary inline-flex items-center gap-2 text-sm"><Plus className="w-4 h-4" /> Add Party</button>}
+          />
         ) : (
           <>
             {/* Desktop Table */}
@@ -171,8 +168,8 @@ export default function Parties() {
                             style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>
                             Ledger
                           </Link>
-                          <button onClick={() => openEdit(party)} className="hover:text-blue-500 transition-colors" style={{ color: 'var(--text-3)' }}><Edit className="w-4 h-4" /></button>
-                          <button onClick={() => handleDelete(party)} className="hover:text-red-500 transition-colors" style={{ color: 'var(--text-3)' }}><Trash2 className="w-4 h-4" /></button>
+                          <IconButton label={`Edit ${party.name}`} onClick={() => openEdit(party)}><Edit className="w-4 h-4" /></IconButton>
+                          <IconButton label={`Delete ${party.name}`} variant="danger" onClick={() => handleDelete(party)}><Trash2 className="w-4 h-4" /></IconButton>
                         </div>
                       </td>
                     </tr>
@@ -202,17 +199,17 @@ export default function Parties() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Link to={`/parties/${party.id}/ledger`}
-                      className="flex-1 text-center text-xs font-medium py-1.5 rounded-lg"
+                      className="flex-1 text-center text-xs font-semibold py-2 rounded-lg"
                       style={{backgroundColor:'rgba(59,130,246,0.1)', color:'#2563eb'}}>
                       Ledger
                     </Link>
                     <button onClick={() => openEdit(party)}
-                      className="flex-1 text-center text-xs font-medium py-1.5 rounded-lg"
+                      className="flex-1 text-center text-xs font-semibold py-2 rounded-lg"
                       style={{backgroundColor:'rgba(16,185,129,0.1)', color:'#059669'}}>
                       Edit
                     </button>
                     <button onClick={() => handleDelete(party)}
-                      className="flex-1 text-center text-xs font-medium py-1.5 rounded-lg"
+                      className="flex-1 text-center text-xs font-semibold py-2 rounded-lg"
                       style={{backgroundColor:'rgba(220,38,38,0.1)', color:'#dc2626'}}>
                       Delete
                     </button>
@@ -295,11 +292,11 @@ export default function Parties() {
                 </div>
               </div>
               {/* Opening Balance */}
-              <div className="rounded-xl p-3 space-y-2" style={{backgroundColor:'rgba(59,130,246,0.06)', border:'1px solid rgba(59,130,246,0.2)'}}>
+              <div className="rounded-lg p-3 space-y-2" style={{backgroundColor:'rgba(59,130,246,0.06)', border:'1px solid rgba(59,130,246,0.2)'}}>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold" style={{color:'var(--text)'}}>📊 Opening Balance (पिछला बकाया)</span>
+                  <span className="text-sm font-semibold" style={{color:'var(--text)'}}>Opening Balance (पिछला बकाया)</span>
                 </div>
-                <p className="text-xs" style={{color:'var(--text-3)'}}>2025-26 का पुराना बकाया जोड़ें — यह ledger में दिखेगा</p>
+                <p className="text-xs" style={{color:'var(--text-3)'}}>Purana bacha hua balance add karein. Yeh party ledger aur outstanding me dikhega.</p>
                 <div className="relative">
                   <span className="input-prefix absolute left-3 top-1/2 -translate-y-1/2 font-medium text-sm" style={{color:'var(--text-3)'}}>₹</span>
                   <input type="number" className="input-field input-with-currency" value={form.opening_balance}

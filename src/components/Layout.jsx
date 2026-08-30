@@ -83,7 +83,7 @@ export default function Layout({ children }) {
         {/* New Invoice */}
         <div className="px-3 py-2.5 flex-shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
           <Link to="/invoices/new" onClick={() => setSidebarOpen(false)}
-            className="btn-primary w-full justify-center text-xs py-1.5">
+            className="btn-primary w-full justify-center text-xs py-1.5 whitespace-nowrap">
             <Plus className="w-3.5 h-3.5" /> New Invoice
           </Link>
         </div>
@@ -99,7 +99,7 @@ export default function Layout({ children }) {
               (path !== '/dashboard' && location.pathname.startsWith(path));
             return (
               <Link key={path} to={path} onClick={() => setSidebarOpen(false)}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors"
+                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
                 style={{
                   backgroundColor: active ? (dark ? '#1e3a5f' : '#eff6ff') : 'transparent',
                   color: active ? (dark ? '#60a5fa' : '#1d4ed8') : 'var(--text-3)',
@@ -119,7 +119,7 @@ export default function Layout({ children }) {
         {/* Bottom */}
         <div className="p-2 flex-shrink-0 space-y-0.5" style={{ borderTop: '1px solid var(--border)' }}>
           <button onClick={toggle}
-            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-sm font-medium transition-colors"
+            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
             style={{ color: 'var(--text-3)', backgroundColor: 'transparent' }}
             onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--text)'; }}
             onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-3)'; }}
@@ -159,7 +159,9 @@ export default function Layout({ children }) {
           </div>
           <div className="hidden lg:flex flex-1" />
           <button onClick={toggle}
-            className="p-2 rounded-xl transition-colors"
+            aria-label="Toggle theme"
+            title="Toggle theme"
+            className="p-2 rounded-lg transition-colors"
             style={{ color: 'var(--text-3)' }}
             onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
             onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}

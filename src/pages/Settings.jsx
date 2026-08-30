@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { Download, KeyRound, Save, ShieldCheck } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { PageHeader } from '../components/ui';
 
 export default function Settings() {
   const { user, company } = useAuth();
@@ -48,10 +49,10 @@ export default function Settings() {
 
   return (
     <div className="space-y-4 max-w-4xl">
-      <div>
-        <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Settings</h1>
-        <p className="text-sm mt-1" style={{ color: 'var(--text-3)' }}>{company?.company_name || 'Company'} account preferences</p>
-      </div>
+      <PageHeader
+        title="Settings"
+        subtitle={`${company?.company_name || 'Company'} account preferences, backup and security.`}
+      />
 
       <form onSubmit={changePassword} className="card space-y-4">
         <div className="flex items-center gap-2">

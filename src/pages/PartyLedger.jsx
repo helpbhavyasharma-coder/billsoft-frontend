@@ -1,17 +1,12 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import toast from "react-hot-toast";
 import { ArrowLeft, Plus, Trash2, X, Phone, MapPin, IndianRupee, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
+import { StatusBadge } from '../components/ui';
 
 const fmt = (n) => parseFloat(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 });
-
-const statusColors = {
-  unpaid: "bg-red-100 text-red-700",
-  partial: "bg-yellow-100 text-yellow-700",
-  paid: "bg-green-100 text-green-700",
-};
 
 const modeColors = {
   cash: "bg-green-50 text-green-700",
@@ -234,32 +229,32 @@ export default function PartyLedger() {
           <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>Total Bills</p>
         </div>
         <div className="card text-center py-3 px-2">
-          <p className="text-lg font-bold" style={{color:'var(--text)'}}>Rs.{fmt(summary.total_amount)}</p>
+          <p className="text-lg font-bold" style={{color:'var(--text)'}}>₹{fmt(summary.total_amount)}</p>
           <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>Total Business</p>
         </div>
         <div className="card text-center py-3 px-2" style={{borderColor:'rgba(34,197,94,0.4)'}}>
-          <p className="text-lg font-bold text-green-600">Rs.{fmt(summary.total_paid)}</p>
+          <p className="text-lg font-bold text-green-600">₹{fmt(summary.total_paid)}</p>
           <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>Total Received</p>
         </div>
         <div className="card text-center py-3 px-2" style={{borderColor:'rgba(249,115,22,0.4)'}}>
-          <p className="text-lg font-bold text-orange-600">Rs.{fmt(summary.goods_return_total)}</p>
+          <p className="text-lg font-bold text-orange-600">₹{fmt(summary.goods_return_total)}</p>
           <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>Goods Return</p>
         </div>
         <div className="card text-center py-3 px-2" style={{borderColor:'rgba(220,38,38,0.4)'}}>
-          <p className="text-lg font-bold text-red-600">Rs.{fmt(summary.outstanding)}</p>
+          <p className="text-lg font-bold text-red-600">₹{fmt(summary.outstanding)}</p>
           <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>Outstanding</p>
         </div>
       </div>
 
       {/* Opening Balance Banner */}
       {parseFloat(summary.opening_balance || 0) > 0 && (
-        <div className="rounded-xl p-3 flex items-center justify-between flex-wrap gap-2"
+        <div className="rounded-lg p-3 flex items-center justify-between flex-wrap gap-2"
           style={{backgroundColor:'rgba(234,179,8,0.1)', border:'1px solid rgba(234,179,8,0.4)'}}>
           <div>
-            <p className="text-sm font-semibold text-yellow-700">📊 Opening Balance (पिछला बकाया 2025-26)</p>
-            <p className="text-xs text-yellow-600">पिछले साल का बकाया जो इस ledger में जोड़ा गया है</p>
+            <p className="text-sm font-semibold text-yellow-700">Opening Balance (पिछला बकाया)</p>
+            <p className="text-xs text-yellow-600">Purana bacha hua balance jo is ledger me add kiya gaya hai.</p>
           </div>
-          <span className="text-lg font-bold text-yellow-700">Rs.{fmt(summary.opening_balance)}</span>
+          <span className="text-lg font-bold text-yellow-700">₹{fmt(summary.opening_balance)}</span>
         </div>
       )}
 
@@ -271,11 +266,11 @@ export default function PartyLedger() {
             <p className="font-semibold text-red-700">Outstanding Due</p>
             <p className="text-sm text-red-600">
               {unpaidInvoices.length} invoice(s) pending payment
-              {parseFloat(summary.goods_return_total || 0) > 0 ? " after goods return adjustment Rs." + fmt(summary.goods_return_total) : ""}
+              {parseFloat(summary.goods_return_total || 0) > 0 ? " after goods return adjustment ₹" + fmt(summary.goods_return_total) : ""}
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-2xl font-bold text-red-700">Rs.{fmt(summary.outstanding)}</span>
+            <span className="text-2xl font-bold text-red-700">₹{fmt(summary.outstanding)}</span>
             <button onClick={openGeneralPayModal} className="btn-danger text-sm py-1.5">
               Collect Now
             </button>
@@ -336,16 +331,14 @@ export default function PartyLedger() {
                             <Link to={"/invoices/" + inv.id} className="font-medium text-blue-600 hover:text-blue-700">{inv.invoice_no}</Link>
                           </td>
                           <td className="table-cell" style={{color:'var(--text-3)'}}>{inv.invoice_date ? format(new Date(inv.invoice_date), "dd MMM yyyy") : "-"}</td>
-                          <td className="table-cell text-right font-medium" style={{color:'var(--text-2)'}}>Rs.{fmt(inv.grand_total)}</td>
-                          <td className="table-cell text-right text-green-600 font-medium">Rs.{fmt(inv.amount_paid)}</td>
-                          <td className="table-cell text-right text-orange-600 font-medium">Rs.{fmt(inv.goods_return_total)}</td>
+                          <td className="table-cell text-right font-medium" style={{color:'var(--text-2)'}}>₹{fmt(inv.grand_total)}</td>
+                          <td className="table-cell text-right text-green-600 font-medium">₹{fmt(inv.amount_paid)}</td>
+                          <td className="table-cell text-right text-orange-600 font-medium">₹{fmt(inv.goods_return_total)}</td>
                           <td className={"table-cell text-right font-bold " + (balance > 0 ? "text-red-600" : "text-green-600")}>
-                            Rs.{fmt(balance)}
+                            ₹{fmt(balance)}
                           </td>
                           <td className="table-cell text-center">
-                            <span className={"text-xs px-2 py-0.5 rounded-full font-medium " + (statusColors[inv.payment_status] || "bg-gray-100 text-gray-600")}>
-                              {inv.payment_status}
-                            </span>
+                            <StatusBadge status={inv.payment_status} />
                           </td>
                           <td className="table-cell text-center">
                             {inv.payment_status !== "paid" && (
@@ -368,10 +361,10 @@ export default function PartyLedger() {
                   <tfoot>
                     <tr style={{backgroundColor:'var(--bg-muted)', borderTop:'2px solid var(--border)'}}>
                       <td colSpan={2} className="table-cell font-bold" style={{color:'var(--text)'}}>TOTAL</td>
-                      <td className="table-cell text-right font-bold" style={{color:'var(--text)'}}>Rs.{fmt(summary.total_amount)}</td>
-                      <td className="table-cell text-right font-bold text-green-600">Rs.{fmt(summary.total_paid)}</td>
-                      <td className="table-cell text-right font-bold text-orange-600">Rs.{fmt(summary.goods_return_total)}</td>
-                      <td className="table-cell text-right font-bold text-red-600">Rs.{fmt(summary.outstanding)}</td>
+                      <td className="table-cell text-right font-bold" style={{color:'var(--text)'}}>₹{fmt(summary.total_amount)}</td>
+                      <td className="table-cell text-right font-bold text-green-600">₹{fmt(summary.total_paid)}</td>
+                      <td className="table-cell text-right font-bold text-orange-600">₹{fmt(summary.goods_return_total)}</td>
+                      <td className="table-cell text-right font-bold text-red-600">₹{fmt(summary.outstanding)}</td>
                       <td colSpan={2}></td>
                     </tr>
                   </tfoot>
@@ -481,7 +474,7 @@ export default function PartyLedger() {
                         </td>
                         <td className="table-cell" style={{color:'var(--text-3)'}}>{p.reference_no || "-"}</td>
                         <td className="table-cell text-xs" style={{color:'var(--text-3)'}}>{p.notes || "-"}</td>
-                        <td className="table-cell text-right font-bold text-green-600 text-base">Rs.{fmt(p.amount)}</td>
+                        <td className="table-cell text-right font-bold text-green-600 text-base">₹{fmt(p.amount)}</td>
                         <td className="table-cell text-center">
                           <button onClick={() => deletePayment(p.id)} className="text-red-400 hover:text-red-600">
                             <Trash2 className="w-4 h-4" />
@@ -494,7 +487,7 @@ export default function PartyLedger() {
                     <tr style={{backgroundColor:'rgba(34,197,94,0.08)', borderTop:'2px solid rgba(34,197,94,0.3)'}}>
                       <td colSpan={5} className="table-cell font-bold text-green-700">TOTAL RECEIVED</td>
                       <td className="table-cell text-right font-bold text-green-600 text-base">
-                        Rs.{fmt(payments.reduce((s, p) => s + parseFloat(p.amount || 0), 0))}
+                        ₹{fmt(payments.reduce((s, p) => s + parseFloat(p.amount || 0), 0))}
                       </td>
                       <td></td>
                     </tr>
@@ -572,7 +565,7 @@ export default function PartyLedger() {
                         <td className="table-cell text-blue-600 font-medium">{r.invoice_no || "-"}</td>
                         <td className="table-cell" style={{color:'var(--text-2)'}}>{r.reason || "-"}</td>
                         <td className="table-cell text-xs" style={{color:'var(--text-3)'}}>{r.notes || "-"}</td>
-                        <td className="table-cell text-right font-bold text-orange-600 text-base">Rs.{fmt(r.amount)}</td>
+                        <td className="table-cell text-right font-bold text-orange-600 text-base">₹{fmt(r.amount)}</td>
                         <td className="table-cell text-center">
                           <button onClick={() => deleteReturn(r.id)} className="text-red-400 hover:text-red-600">
                             <Trash2 className="w-4 h-4" />
@@ -585,7 +578,7 @@ export default function PartyLedger() {
                     <tr style={{backgroundColor:'rgba(249,115,22,0.08)', borderTop:'2px solid rgba(249,115,22,0.3)'}}>
                       <td colSpan={5} className="table-cell font-bold text-orange-700">TOTAL GOODS RETURN ADJUSTMENT</td>
                       <td className="table-cell text-right font-bold text-orange-600 text-base">
-                        Rs.{fmt(returns.reduce((s, r) => s + parseFloat(r.amount || 0), 0))}
+                        ₹{fmt(returns.reduce((s, r) => s + parseFloat(r.amount || 0), 0))}
                       </td>
                       <td></td>
                     </tr>
@@ -645,11 +638,11 @@ export default function PartyLedger() {
               <div className="rounded-xl p-3 text-sm" style={{backgroundColor:'rgba(249,115,22,0.08)', border:'1px solid rgba(249,115,22,0.2)'}}>
                 <div className="flex justify-between">
                   <span style={{color:'var(--text-3)'}}>Current Outstanding</span>
-                  <span className="font-bold text-red-600">Rs.{fmt(summary.outstanding)}</span>
+                  <span className="font-bold text-red-600">₹{fmt(summary.outstanding)}</span>
                 </div>
                 <div className="flex justify-between mt-1">
                   <span style={{color:'var(--text-3)'}}>Previous Goods Return</span>
-                  <span className="font-bold text-orange-600">Rs.{fmt(summary.goods_return_total)}</span>
+                  <span className="font-bold text-orange-600">₹{fmt(summary.goods_return_total)}</span>
                 </div>
               </div>
 
@@ -666,7 +659,7 @@ export default function PartyLedger() {
                     const bal = Math.max(parseFloat(inv.balance ?? 0), 0);
                     return (
                       <option key={inv.id} value={inv.id}>
-                        {inv.invoice_no} - Balance: Rs.{fmt(bal)}
+                        {inv.invoice_no} - Balance: ₹{fmt(bal)}
                       </option>
                     );
                   })}
@@ -676,7 +669,7 @@ export default function PartyLedger() {
               <div>
                 <label className="label">Return Amount *</label>
                 <div className="relative">
-                  <span className="input-prefix absolute left-3 top-1/2 -translate-y-1/2 font-medium" style={{color:'var(--text-3)'}}>Rs.</span>
+                  <span className="input-prefix absolute left-3 top-1/2 -translate-y-1/2 font-medium" style={{color:'var(--text-3)'}}>₹</span>
                   <input type="number" className="input-field input-with-currency" value={returnForm.amount}
                     onChange={(e) => setReturnForm(p => ({ ...p, amount: e.target.value }))}
                     placeholder="0.00" min="0.01" step="0.01" required autoFocus />
@@ -736,7 +729,7 @@ export default function PartyLedger() {
               <div className="rounded-xl p-3 text-sm" style={{backgroundColor:'rgba(220,38,38,0.08)', border:'1px solid rgba(220,38,38,0.2)'}}>
                 <div className="flex justify-between">
                   <span style={{color:'var(--text-3)'}}>Total Outstanding</span>
-                  <span className="font-bold text-red-600">Rs.{fmt(summary.outstanding)}</span>
+                  <span className="font-bold text-red-600">₹{fmt(summary.outstanding)}</span>
                 </div>
               </div>
 
@@ -755,14 +748,14 @@ export default function PartyLedger() {
                   }} required>
                   <option value="">-- Select Payment Type --</option>
                   {openingDue > 0 && (
-                    <option value="opening">Opening Balance - Balance: Rs.{fmt(openingDue)}</option>
+                    <option value="opening">Opening Balance - Balance: ₹{fmt(openingDue)}</option>
                   )}
                   <option value="general">Without Invoice / Manual Payment</option>
                   {invoices.filter(i => i.payment_status !== "paid").map(inv => {
                     const bal = Math.max(parseFloat(inv.balance ?? 0), 0);
                     return (
                       <option key={inv.id} value={inv.id}>
-                        {inv.invoice_no} - Balance: Rs.{fmt(bal)}
+                        {inv.invoice_no} - Balance: ₹{fmt(bal)}
                       </option>
                     );
                   })}
@@ -773,7 +766,7 @@ export default function PartyLedger() {
               <div>
                 <label className="label">Amount Received *</label>
                 <div className="relative">
-                  <span className="input-prefix absolute left-3 top-1/2 -translate-y-1/2 font-medium" style={{color:'var(--text-3)'}}>Rs.</span>
+                  <span className="input-prefix absolute left-3 top-1/2 -translate-y-1/2 font-medium" style={{color:'var(--text-3)'}}>₹</span>
                   <input type="number" className="input-field input-with-currency" value={payForm.amount}
                     onChange={(e) => setPayForm(p => ({ ...p, amount: e.target.value }))}
                     placeholder="0.00" min="0.01" step="0.01" required autoFocus />

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 import { Eye, Pencil, Plus, ShoppingCart, Trash2, X } from 'lucide-react';
+import { EmptyState, LoadingState, Money, PageHeader, StatusBadge } from '../components/ui';
 
 const fmt = (n) => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const today = new Date().toISOString().slice(0, 10);
@@ -31,6 +32,21 @@ const gstInclusiveFromBase = (baseRate, gstRate) => {
   const gst = parseFloat(gstRate || 0);
   if (!base) return 0;
   return base * (1 + gst / 100);
+};
+
+const acceptedQty = (item) => Math.max(
+  parseFloat(item.qty || 0) -
+  parseFloat(item.short_qty || 0) -
+  parseFloat(item.damaged_qty || 0) -
+  parseFloat(item.expired_qty || 0),
+  0
+);
+
+const lineTotal = (item) => {
+  const accepted = acceptedQty(item);
+  const gstRate = parseFloat(item.gst_rate || 0);
+  const inclusiveRate = parseFloat(item.rate_including_gst || 0);
+  return inclusiveRate > 0 ? accepted * inclusiveRate : accepted * parseFloat(item.rate || 0) * (1 + gstRate / 100);
 };
 
 const emptyForm = () => ({
@@ -231,12 +247,15 @@ export default function Purchases() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Purchasing Bills</h1>
-        <button onClick={() => { setEditingId(null); setShowForm(true); }} className="btn-primary flex items-center gap-2 text-sm">
-          <Plus className="w-4 h-4" /> New Purchase
-        </button>
-      </div>
+      <PageHeader
+        title="Purchasing Bills"
+        subtitle="Supplier bills, GST-inclusive purchase rates, short/damage/expiry and stock entries."
+        actions={(
+          <button onClick={() => { setEditingId(null); setShowForm(true); }} className="btn-primary flex items-center gap-2 text-sm whitespace-nowrap">
+            <Plus className="w-4 h-4" /> New Purchase
+          </button>
+        )}
+      />
 
       {showForm && (
         <form onSubmit={savePurchase} className="card space-y-4">
@@ -294,7 +313,7 @@ export default function Purchases() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full min-w-[980px] table-fixed">
               <colgroup>
                 <col className="w-[165px]" />
@@ -374,6 +393,75 @@ export default function Purchases() {
             </table>
           </div>
 
+          <div className="md:hidden space-y-3">
+            {form.items.map((item, idx) => (
+              <div key={idx} className="mobile-card">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div>
+                    <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>Item {idx + 1}</p>
+                    <p className="text-xs" style={{ color: 'var(--text-3)' }}>Accepted: {acceptedQty(item).toLocaleString('en-IN', { maximumFractionDigits: 3 })}</p>
+                  </div>
+                  <button type="button" onClick={() => removeItem(idx)} disabled={form.items.length === 1} className="icon-btn icon-btn-danger disabled:opacity-40" aria-label="Remove item" title="Remove item">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="label">Product</label>
+                    <select className="input-field" value={item.product_id} onChange={(e) => selectProduct(idx, e.target.value)}>
+                      <option value="">Select product</option>
+                      {products.map((p) => <option key={p.id} value={p.id}>{p.name} {p.category ? `(${p.category})` : ''}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="label">Bill Qty</label>
+                      <input type="number" min="0" step="0.001" className="input-field text-right" value={item.qty} onChange={(e) => updateItem(idx, 'qty', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="label">GST Incl. Rate</label>
+                      <input type="number" min="0" step="0.01" className="input-field text-right font-semibold" value={item.rate_including_gst} onChange={(e) => updateItem(idx, 'rate_including_gst', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="label">Short</label>
+                      <input type="number" min="0" step="0.001" className="input-field text-right" value={item.short_qty} onChange={(e) => updateItem(idx, 'short_qty', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="label">Damage</label>
+                      <input type="number" min="0" step="0.001" className="input-field text-right" value={item.damaged_qty} onChange={(e) => updateItem(idx, 'damaged_qty', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="label">Expiry Qty</label>
+                      <input type="number" min="0" step="0.001" className="input-field text-right" value={item.expired_qty} onChange={(e) => updateItem(idx, 'expired_qty', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="label">GST %</label>
+                      <input type="number" min="0" step="0.01" className="input-field text-right" value={item.gst_rate} onChange={(e) => updateItem(idx, 'gst_rate', e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="label">Base Rate</label>
+                      <input type="number" className="input-field text-right" value={item.rate} readOnly />
+                    </div>
+                    <div>
+                      <label className="label">Expiry Date</label>
+                      <input type="date" className="input-field" value={item.expiry_date} onChange={(e) => updateItem(idx, 'expiry_date', e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg px-3 py-2 flex items-center justify-between" style={{ backgroundColor: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+                    <span className="text-xs font-semibold uppercase" style={{ color: 'var(--text-3)' }}>Line Total</span>
+                    <span className="font-bold" style={{ color: 'var(--text)' }}><Money value={lineTotal(item)} /></span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <button type="button" onClick={addItem} className="btn-secondary text-sm">Add Item</button>
             <div className="text-right text-sm" style={{ color: 'var(--text)' }}>
@@ -389,7 +477,7 @@ export default function Purchases() {
                 />
                 <button type="button" onClick={autoRoundOff} className="btn-secondary text-xs px-3 py-2">Auto</button>
               </div>
-              <p className="font-bold text-base">Grand Total: ₹{fmt(totals.grand)}</p>
+              <p className="font-bold text-base">Grand Total: <Money value={totals.grand} /></p>
             </div>
           </div>
 
@@ -402,13 +490,15 @@ export default function Purchases() {
       )}
 
       <div className="card p-0 overflow-hidden">
-        {loading ? <div className="p-8 text-center" style={{ color: 'var(--text-3)' }}>Loading...</div> : purchases.length === 0 ? (
-          <div className="text-center py-16">
-            <ShoppingCart className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--border)' }} />
-            <p style={{ color: 'var(--text-3)' }}>No purchase bills found.</p>
-          </div>
+        {loading ? <LoadingState label="Loading purchase bills..." /> : purchases.length === 0 ? (
+          <EmptyState
+            icon={ShoppingCart}
+            title="No purchase bills found"
+            description="Create a purchase bill to update supplier payable and stock history."
+          />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
@@ -431,7 +521,7 @@ export default function Purchases() {
                     <td className="table-cell text-right font-bold">₹{fmt(purchase.grand_total)}</td>
                     <td className="table-cell text-right text-green-600 font-medium">₹{fmt(purchase.amount_paid)}</td>
                     <td className="table-cell text-right text-red-600 font-medium">₹{fmt(purchase.payable)}</td>
-                    <td className="table-cell text-center">{purchase.payment_status}</td>
+                    <td className="table-cell text-center"><StatusBadge status={purchase.payment_status} /></td>
                     <td className="table-cell">
                       <div className="flex items-center justify-center gap-2">
                         <button title="View" onClick={() => loadPurchase(purchase.id, 'view')} className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50"><Eye className="w-4 h-4" /></button>
@@ -444,6 +534,30 @@ export default function Purchases() {
               </tbody>
             </table>
           </div>
+          <div className="md:hidden p-3 space-y-2">
+            {purchases.map((purchase) => (
+              <div key={purchase.id} className="mobile-card">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="min-w-0">
+                    <p className="font-bold truncate" style={{ color: 'var(--text)' }}>{purchase.bill_no || `#${purchase.id}`}</p>
+                    <p className="text-xs truncate" style={{ color: 'var(--text-3)' }}>{purchase.supplier_name || 'No supplier'} | {String(purchase.purchase_date || '').slice(0, 10)}</p>
+                  </div>
+                  <StatusBadge status={purchase.payment_status} />
+                </div>
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  <div className="stat-box"><p>Amount</p><span><Money value={purchase.grand_total} /></span></div>
+                  <div className="stat-box" style={{ backgroundColor: 'rgba(22,163,74,0.08)', borderColor: 'rgba(22,163,74,0.2)' }}><p>Paid</p><span className="text-green-600"><Money value={purchase.amount_paid} /></span></div>
+                  <div className="stat-box" style={{ backgroundColor: 'rgba(220,38,38,0.08)', borderColor: 'rgba(220,38,38,0.2)' }}><p>Payable</p><span className="text-red-600"><Money value={purchase.payable} /></span></div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <button type="button" onClick={() => loadPurchase(purchase.id, 'view')} className="btn-secondary text-xs py-2"><Eye className="w-4 h-4" /> View</button>
+                  <button type="button" onClick={() => loadPurchase(purchase.id, 'edit')} className="btn-secondary text-xs py-2"><Pencil className="w-4 h-4" /> Edit</button>
+                  <button type="button" onClick={() => deletePurchase(purchase)} className="btn-secondary text-xs py-2 text-red-600"><Trash2 className="w-4 h-4" /> Cancel</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </div>
 

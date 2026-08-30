@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { FileText, Download, Search, CheckCircle, XCircle, Printer } from "lucide-react";
 import { format } from "date-fns";
 import { Link } from "react-router-dom";
+import { EmptyState, LoadingState, PageHeader, StatusBadge } from '../components/ui';
 
 const fmt = (n) => parseFloat(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtNum = (n) => parseInt(n || 0).toLocaleString("en-IN");
@@ -14,12 +15,6 @@ const MONTHS = [
   { v: "07", l: "July" }, { v: "08", l: "August" }, { v: "09", l: "September" },
   { v: "10", l: "October" }, { v: "11", l: "November" }, { v: "12", l: "December" },
 ];
-
-const statusColors = {
-  unpaid: "bg-red-100 text-red-700",
-  partial: "bg-yellow-100 text-yellow-700",
-  paid: "bg-green-100 text-green-700",
-};
 
 export default function AccountantReport() {
   const [filterType, setFilterType] = useState("month");
@@ -64,12 +59,10 @@ export default function AccountantReport() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between flex-wrap gap-3 no-print">
-        <div>
-          <h1 className="text-xl font-bold" style={{ color: "var(--text)" }}>📋 Accountant Report</h1>
-          <p className="text-sm mt-0.5" style={{ color: "var(--text-3)" }}>Bill-wise GST detail, party GSTIN, tax summary</p>
-        </div>
-        {data && (
+      <PageHeader
+        title="Accountant Report"
+        subtitle="Bill-wise GST detail, party GSTIN, tax summary and HSN view."
+        actions={data && (
           <div className="flex items-center gap-2 flex-wrap">
             <button onClick={printReport} className="btn-secondary flex items-center gap-2 text-sm">
               <Printer className="w-4 h-4" /> Print
@@ -79,7 +72,7 @@ export default function AccountantReport() {
             </button>
           </div>
         )}
-      </div>
+      />
 
       <div className="card space-y-4 no-print">
         <div className="flex gap-2 flex-wrap">
@@ -239,9 +232,7 @@ export default function AccountantReport() {
                         <td className="table-cell text-right font-semibold text-amber-600">₹{fmt(inv.total_tax)}</td>
                         <td className="table-cell text-right font-bold" style={{ color: "var(--text)" }}>₹{fmt(inv.grand_total)}</td>
                         <td className="table-cell text-center">
-                          <span className={"text-xs px-2 py-0.5 rounded-full font-medium " + (statusColors[inv.payment_status] || "bg-gray-100 text-gray-600")}>
-                            {inv.payment_status}
-                          </span>
+                          <StatusBadge status={inv.payment_status} />
                         </td>
                       </tr>
                     ))}
@@ -271,9 +262,7 @@ export default function AccountantReport() {
                           {inv.invoice_date ? format(new Date(inv.invoice_date), "dd MMM yyyy") : "-"}
                         </p>
                       </div>
-                      <span className={"text-xs px-2 py-0.5 rounded-full font-medium " + (statusColors[inv.payment_status] || "bg-gray-100 text-gray-600")}>
-                        {inv.payment_status}
-                      </span>
+                      <StatusBadge status={inv.payment_status} />
                     </div>
                     <div className="flex items-center justify-between">
                       <div>
@@ -433,12 +422,15 @@ export default function AccountantReport() {
       )}
 
       {!data && !loading && (
-        <div className="text-center py-16 card">
-          <FileText className="w-12 h-12 mx-auto mb-3" style={{ color: "var(--border)" }} />
-          <p className="font-medium" style={{ color: "var(--text-2)" }}>Select filters and click Generate Report</p>
-          <p className="text-sm mt-1" style={{ color: "var(--text-3)" }}>Bill-wise GST, party GSTIN status, HSN summary</p>
+        <div className="card p-0">
+          <EmptyState
+            icon={FileText}
+            title="Generate an accountant report"
+            description="Select a month, year or custom period to view bill-wise GST, party GSTIN and HSN summary."
+          />
         </div>
       )}
+      {loading && <div className="card p-0"><LoadingState label="Generating report..." /></div>}
     </div>
   );
 }
