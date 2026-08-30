@@ -74,19 +74,19 @@ export default function Dashboard() {
         <StatCard label="Year Total" value={<Money value={data?.year_total?.total} />} helper={`${data?.year_total?.count || 0} invoices`} icon={IndianRupee} tone="success" />
         <StatCard label="Outstanding" value={<Money value={data?.outstanding?.total} />} helper={`${data?.outstanding?.count || 0} parties`} icon={AlertCircle} tone="danger" />
 
-        <div className="card">
+        <div className="card dashboard-quick-links">
           <div className="flex items-center justify-between mb-2">
             <p className="stat-label">Quick Links</p>
           </div>
-          <div className="space-y-1.5">
-            <Link to="/invoices/new" className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium">
-              <FileText className="w-3.5 h-3.5" /> New Invoice
+          <div className="dashboard-quick-list">
+            <Link to="/invoices/new" className="dashboard-quick-link text-blue-600 hover:text-blue-700">
+              <FileText className="w-3.5 h-3.5 flex-shrink-0" /> <span>New Invoice</span>
             </Link>
-            <Link to="/parties" className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium">
-              <Users className="w-3.5 h-3.5" /> Parties
+            <Link to="/parties" className="dashboard-quick-link text-blue-600 hover:text-blue-700">
+              <Users className="w-3.5 h-3.5 flex-shrink-0" /> <span>Parties</span>
             </Link>
-            <Link to="/outstanding" className="flex items-center gap-1.5 text-xs text-red-600 hover:text-red-700 font-medium">
-              <AlertCircle className="w-3.5 h-3.5" /> Outstanding
+            <Link to="/outstanding" className="dashboard-quick-link text-red-600 hover:text-red-700">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> <span>Outstanding</span>
             </Link>
           </div>
         </div>

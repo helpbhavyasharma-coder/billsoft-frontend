@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 import { Building2, Edit3, Landmark, Plus, Trash2, Wallet, X } from 'lucide-react';
+import { IconButton, LoadingState, PageHeader } from '../components/ui';
 
 const fmt = (n) => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
 const today = new Date().toISOString().slice(0, 10);
@@ -138,23 +139,21 @@ export default function Ledgers() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Bank, Cash & Salary Ledgers</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-3)' }}>
-            Multiple bank, cash, salary, and custom accounts manage karein.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
+      <PageHeader
+        title="Bank, Cash & Salary Ledgers"
+        subtitle="Multiple bank, cash, salary, and custom accounts manage karein."
+        actions={(
+          <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
           <div className="text-right">
             <p className="text-xs" style={{ color: 'var(--text-3)' }}>Total Balance</p>
             <p className={`font-bold ${totalBalance < 0 ? 'text-red-500' : 'text-green-600'}`}>₹{fmt(totalBalance)}</p>
           </div>
-          <button onClick={openCreate} className="btn-primary text-sm flex items-center gap-2">
+          <button onClick={openCreate} className="btn-primary text-sm flex items-center gap-2 whitespace-nowrap">
             <Plus className="w-4 h-4" /> Add Account
           </button>
-        </div>
-      </div>
+          </div>
+        )}
+      />
 
       {showAccount && (
         <form onSubmit={saveAccount} className="card space-y-4">
@@ -166,8 +165,8 @@ export default function Ledgers() {
               <X className="w-4 h-4" />
             </button>
           </div>
-          <div className="grid md:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
-            <div className="lg:col-span-2">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
+            <div className="sm:col-span-2 lg:col-span-2">
               <label className="label">Account Name *</label>
               <input
                 className="input-field"
@@ -201,7 +200,7 @@ export default function Ledgers() {
               <label className="label">Branch / Note</label>
               <input className="input-field" value={accountForm.branch} onChange={(e) => setAccountForm((p) => ({ ...p, branch: e.target.value }))} placeholder="Branch name or cash location" />
             </div>
-            <div className="md:col-span-2 lg:col-span-4 flex gap-2 justify-end">
+            <div className="sm:col-span-2 lg:col-span-4 flex flex-col sm:flex-row gap-2 justify-end">
               <button type="button" onClick={() => setShowAccount(false)} className="btn-secondary">Cancel</button>
               <button className="btn-primary">{editingAccount ? 'Update Account' : 'Save Account'}</button>
             </div>
@@ -213,7 +212,7 @@ export default function Ledgers() {
         <div className="card p-0 overflow-hidden">
           <div className="p-4 font-bold" style={{ color: 'var(--text)', borderBottom: '1px solid var(--border)' }}>Accounts</div>
           {loadingAccounts ? (
-            <div className="p-8 text-center" style={{ color: 'var(--text-3)' }}>Loading accounts...</div>
+            <LoadingState label="Loading accounts..." />
           ) : accounts.length === 0 ? (
             <div className="p-8 text-center space-y-3" style={{ color: 'var(--text-3)' }}>
               <p>No ledger accounts yet.</p>
@@ -236,12 +235,12 @@ export default function Ledgers() {
                 </span>
                 <span className={`font-bold whitespace-nowrap ${parseFloat(acc.balance || 0) < 0 ? 'text-red-500' : 'text-green-600'}`}>₹{fmt(acc.balance)}</span>
               </button>
-              <button onClick={() => openEdit(acc)} className="p-2 rounded-lg hover:bg-gray-100" title="Edit account">
+              <IconButton label="Edit account" onClick={() => openEdit(acc)}>
                 <Edit3 className="w-4 h-4" />
-              </button>
-              <button onClick={() => deleteAccount(acc)} className="p-2 rounded-lg hover:bg-red-50 text-red-500" title="Delete account">
+              </IconButton>
+              <IconButton label="Delete account" variant="danger" onClick={() => deleteAccount(acc)}>
                 <Trash2 className="w-4 h-4" />
-              </button>
+              </IconButton>
             </div>
           ))}
         </div>
@@ -249,11 +248,11 @@ export default function Ledgers() {
         <div className="lg:col-span-2 space-y-4">
           {selected && (
             <>
-              <div className="card flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
+              <div className="card flex flex-col sm:flex-row sm:flex-wrap sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                   {accountIcon(selected.account_type)}
-                  <div>
-                    <h2 className="font-bold" style={{ color: 'var(--text)' }}>{selected.name}</h2>
+                  <div className="min-w-0">
+                    <h2 className="font-bold truncate" style={{ color: 'var(--text)' }}>{selected.name}</h2>
                     <p className="text-xs" style={{ color: 'var(--text-3)' }}>
                       {accountTypeLabels[selected.account_type] || selected.account_type}
                       {selected.account_no ? ` • A/C ${selected.account_no}` : ''}
@@ -261,13 +260,13 @@ export default function Ledgers() {
                     </p>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="text-left sm:text-right">
                   <p className="text-xs" style={{ color: 'var(--text-3)' }}>Current Balance</p>
                   <p className={`text-lg font-bold ${parseFloat(selected.balance || 0) < 0 ? 'text-red-500' : 'text-green-600'}`}>₹{fmt(selected.balance)}</p>
                 </div>
               </div>
 
-              <form onSubmit={addEntry} className="card grid md:grid-cols-6 gap-3 items-end">
+              <form onSubmit={addEntry} className="card grid sm:grid-cols-2 xl:grid-cols-6 gap-3 items-end">
                 <div>
                   <label className="label">Date</label>
                   <input type="date" className="input-field" value={entryForm.entry_date} onChange={(e) => setEntryForm((p) => ({ ...p, entry_date: e.target.value }))} />
@@ -291,7 +290,7 @@ export default function Ledgers() {
                   <label className="label">Description</label>
                   <input className="input-field" value={entryForm.description} onChange={(e) => setEntryForm((p) => ({ ...p, description: e.target.value }))} placeholder="Salary paid / Cash deposit" />
                 </div>
-                <button className="btn-primary">Add Entry</button>
+                <button className="btn-primary sm:col-span-2 xl:col-span-1">Add Entry</button>
               </form>
             </>
           )}
@@ -305,7 +304,8 @@ export default function Ledgers() {
             ) : entries.length === 0 ? (
               <div className="p-8 text-center" style={{ color: 'var(--text-3)' }}>No entries yet for this account.</div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--border)' }}>
@@ -329,6 +329,38 @@ export default function Ledgers() {
                   </tbody>
                 </table>
               </div>
+              <div className="md:hidden p-3">
+                {entries.map((entry) => {
+                  const isCredit = entry.entry_type === 'credit';
+                  return (
+                    <div key={entry.id} className="ledger-entry-card">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-xs font-bold ${isCredit ? 'text-green-600' : 'text-red-600'}`}
+                              style={{backgroundColor: isCredit ? 'rgba(22,163,74,0.1)' : 'rgba(220,38,38,0.1)'}}
+                            >
+                              {isCredit ? 'Credit' : 'Debit'}
+                            </span>
+                            <span className="text-xs" style={{color:'var(--text-3)'}}>{entry.entry_date}</span>
+                          </div>
+                          <p className="mt-2 text-sm font-semibold leading-snug" style={{color:'var(--text)'}}>
+                            {entry.description || 'Ledger entry'}
+                          </p>
+                          {entry.reference_no && (
+                            <p className="mt-1 text-xs" style={{color:'var(--text-3)'}}>Ref: {entry.reference_no}</p>
+                          )}
+                        </div>
+                        <p className={`whitespace-nowrap text-sm font-black ${isCredit ? 'text-green-600' : 'text-red-600'}`}>
+                          {isCredit ? '+' : '-'}₹{fmt(entry.amount)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              </>
             )}
           </div>
         </div>

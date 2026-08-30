@@ -279,7 +279,7 @@ export default function InvoiceDetail() {
 
       {/* Invoice Card */}
       <div className="card">
-        <div className="grid grid-cols-2 gap-6 mb-4 pb-4" style={{borderBottom:'1px solid var(--border)'}}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-4 pb-4" style={{borderBottom:'1px solid var(--border)'}}>
           <div>
             <p className="text-xs uppercase font-semibold mb-1" style={{color:'var(--text-3)'}}>Bill To</p>
             <p className="font-semibold" style={{color:'var(--text)'}}>{invoice.party_name}</p>
@@ -287,7 +287,7 @@ export default function InvoiceDetail() {
             {invoice.party_mobile && <p className="text-sm" style={{color:'var(--text-2)'}}>{invoice.party_mobile}</p>}
             {invoice.party_gst && invoice.party_gst !== 'NA' && <p className="text-sm" style={{color:'var(--text-2)'}}>GST: {invoice.party_gst}</p>}
           </div>
-          <div className="text-right">
+          <div className="text-left sm:text-right">
             <p className="text-xs uppercase font-semibold mb-1" style={{color:'var(--text-3)'}}>Invoice Details</p>
             <p className="font-semibold" style={{color:'var(--text)'}}>{invoice.invoice_no}</p>
             <p className="text-sm" style={{color:'var(--text-2)'}}>Date: {parseDate(invoice.invoice_date) ? format(parseDate(invoice.invoice_date), 'dd/MM/yyyy') : ''}</p>
@@ -297,7 +297,7 @@ export default function InvoiceDetail() {
         </div>
 
         {/* Items */}
-        <div className="overflow-x-auto mb-4">
+        <div className="hidden md:block overflow-x-auto mb-4">
           <table className="w-full text-sm">
             <thead>
               <tr style={{backgroundColor:'var(--bg-muted)', borderBottom:'1px solid var(--border)'}}>
@@ -329,9 +329,51 @@ export default function InvoiceDetail() {
           </table>
         </div>
 
+        <div className="md:hidden mb-4 space-y-2">
+          {items.map((item, idx) => {
+            const cgst = parseFloat(item.cgst || 0);
+            const sgst = parseFloat(item.sgst || 0);
+            const igst = parseFloat(item.igst || 0);
+            return (
+              <div key={item.id || idx} className="invoice-item-card">
+                <div className="flex items-start gap-2">
+                  <span
+                    className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-xs font-bold"
+                    style={{backgroundColor:'rgba(37,99,235,0.1)', color:'var(--primary)'}}
+                  >
+                    {idx + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-bold text-sm leading-snug" style={{color:'var(--text)'}}>
+                        {item.description}
+                      </p>
+                      <p className="font-black text-sm whitespace-nowrap" style={{color:'var(--text)'}}>
+                        ₹{fmt(item.total_sale)}
+                      </p>
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-1.5 text-[11px]" style={{color:'var(--text-3)'}}>
+                      {item.hsn_code && <span>HSN {item.hsn_code}</span>}
+                      <span>{parseFloat(item.qty || 0).toFixed(2)} {item.unit}</span>
+                      <span>GST {item.gst_rate}%</span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5">
+                      <div className="compact-kv"><span>Rate</span><span>₹{fmt(item.rate)}</span></div>
+                      <div className="compact-kv"><span>Taxable</span><span>₹{fmt(item.taxable_amount)}</span></div>
+                      {cgst > 0 && <div className="compact-kv"><span>CGST</span><span>₹{fmt(cgst)}</span></div>}
+                      {sgst > 0 && <div className="compact-kv"><span>SGST</span><span>₹{fmt(sgst)}</span></div>}
+                      {igst > 0 && <div className="compact-kv"><span>IGST</span><span>₹{fmt(igst)}</span></div>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
         {/* Totals */}
         <div className="flex justify-end">
-          <div className="w-64 space-y-1 text-sm">
+          <div className="w-full sm:w-72 space-y-1 text-sm">
             <div className="flex justify-between" style={{color:'var(--text-2)'}}><span>Subtotal</span><span>₹{fmt(invoice.subtotal)}</span></div>
             {parseFloat(invoice.total_discount) > 0 && <div className="flex justify-between" style={{color:'var(--text-2)'}}><span>Discount</span><span>-₹{fmt(invoice.total_discount)}</span></div>}
             <div className="flex justify-between" style={{color:'var(--text-2)'}}><span>Taxable</span><span>₹{fmt(invoice.taxable_amount)}</span></div>
