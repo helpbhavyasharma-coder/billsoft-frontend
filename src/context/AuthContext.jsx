@@ -57,6 +57,15 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
+  const completeBhauuLogin = async (code, state) => {
+    const { data } = await api.post('/auth/bhauu/exchange', { code, state });
+    if (data.success) {
+      localStorage.setItem('token', data.token);
+      await fetchMe();
+    }
+    return data;
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -74,7 +83,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, company, loading, login, register, logout, refreshCompany }}>
+    <AuthContext.Provider value={{ user, company, loading, login, register, completeBhauuLogin, logout, refreshCompany }}>
       {children}
     </AuthContext.Provider>
   );

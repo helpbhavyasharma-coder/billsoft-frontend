@@ -5,6 +5,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import AuthCallback from './pages/AuthCallback';
 import Dashboard from './pages/Dashboard';
 import CompanySetup from './pages/CompanySetup';
 import InvoiceList from './pages/InvoiceList';
@@ -91,6 +92,10 @@ function AppRoutes() {
       <Route
         path="/register"
         element={loading ? <AuthBootSpinner /> : user ? <PostAuthRedirect /> : <Register />}
+      />
+      <Route
+        path="/auth/callback"
+        element={loading ? <AuthBootSpinner /> : <AuthCallback />}
       />
 
       {/* Company Setup (auth required, no company needed) */}
