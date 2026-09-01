@@ -13,6 +13,23 @@ const defaultAuthConfig = {
   redirectUri: 'https://softbill.bhauu.online/auth/callback',
 };
 
+function createAuthState() {
+  return crypto.randomUUID?.().replace(/-/g, '') || `${Date.now()}${Math.random()}`.replace(/\D/g, '');
+}
+
+function rememberAuthState(state) {
+  if (!state) return;
+  sessionStorage.setItem('bhauu_auth_state', state);
+  try {
+    const existing = JSON.parse(sessionStorage.getItem('bhauu_auth_states') || '[]');
+    const states = Array.isArray(existing) ? existing : [];
+    const next = [state, ...states.filter((item) => item && item !== state)].slice(0, 5);
+    sessionStorage.setItem('bhauu_auth_states', JSON.stringify(next));
+  } catch {
+    sessionStorage.setItem('bhauu_auth_states', JSON.stringify([state]));
+  }
+}
+
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,7 +41,9 @@ export default function Login() {
   const { login } = useAuth();
 
   useEffect(() => {
-    setEmbedState(crypto.randomUUID?.().replace(/-/g, '') || `${Date.now()}${Math.random()}`.replace(/\D/g, ''));
+    const state = createAuthState();
+    rememberAuthState(state);
+    setEmbedState(state);
     let cancelled = false;
     api.get('/auth/bhauu/config')
       .then(({ data }) => {
@@ -56,8 +75,8 @@ export default function Login() {
       toast.error('Bhauu Auth abhi configure nahi hua hai. Old login use karein.');
       return;
     }
-    const state = crypto.randomUUID?.().replace(/-/g, '') || `${Date.now()}${Math.random()}`.replace(/\D/g, '');
-    sessionStorage.setItem('bhauu_auth_state', state);
+    const state = createAuthState();
+    rememberAuthState(state);
     const url = new URL(`${authConfig.gatewayUrl}/oauth/authorize`);
     url.searchParams.set('client_id', authConfig.clientId);
     url.searchParams.set('redirect_uri', authConfig.redirectUri);

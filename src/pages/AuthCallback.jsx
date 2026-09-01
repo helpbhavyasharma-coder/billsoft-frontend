@@ -5,6 +5,27 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { getApiErrorMessage } from '../utils/apiError';
 
+function readRememberedStates() {
+  try {
+    const states = JSON.parse(sessionStorage.getItem('bhauu_auth_states') || '[]');
+    return Array.isArray(states) ? states.filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function forgetAuthState(state) {
+  const states = readRememberedStates().filter((item) => item !== state);
+  if (states.length) {
+    sessionStorage.setItem('bhauu_auth_states', JSON.stringify(states));
+  } else {
+    sessionStorage.removeItem('bhauu_auth_states');
+  }
+  if (!state || sessionStorage.getItem('bhauu_auth_state') === state) {
+    sessionStorage.removeItem('bhauu_auth_state');
+  }
+}
+
 export default function AuthCallback() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -22,6 +43,8 @@ export default function AuthCallback() {
     const state = params.get('state');
     const error = params.get('error');
     const expectedState = sessionStorage.getItem('bhauu_auth_state');
+    const rememberedStates = readRememberedStates();
+    const stateIsKnown = state && (state === expectedState || rememberedStates.includes(state));
 
     if (error) {
       setStatus('error');
@@ -33,7 +56,7 @@ export default function AuthCallback() {
       setMessage('Authorization code missing from Bhauu Auth.');
       return;
     }
-    if (expectedState && state && expectedState !== state) {
+    if (state && (expectedState || rememberedStates.length) && !stateIsKnown) {
       setStatus('error');
       setMessage('Login state mismatch. Please try again.');
       return;
@@ -43,7 +66,7 @@ export default function AuthCallback() {
     completeBhauuLogin(code, state)
       .then((data) => {
         if (cancelled) return;
-        sessionStorage.removeItem('bhauu_auth_state');
+        forgetAuthState(state);
         setStatus('success');
         setMessage(data.message || 'Bhauu Auth login successful.');
         toast.success('Signed in with Bhauu Auth');
