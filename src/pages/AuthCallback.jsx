@@ -26,6 +26,15 @@ function forgetAuthState(state) {
   }
 }
 
+function getPostAuthTarget(user, company) {
+  if (user?.is_admin) return '/admin';
+  return company ? '/dashboard' : '/company/setup';
+}
+
+function isEmbeddedWindow() {
+  return window.parent && window.parent !== window;
+}
+
 export default function AuthCallback() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -33,6 +42,14 @@ export default function AuthCallback() {
   const [status, setStatus] = useState('loading');
   const [message, setMessage] = useState('Completing Bhauu Auth login...');
   const handledRef = useRef(false);
+
+  useEffect(() => {
+    if (!user || !isEmbeddedWindow()) return;
+    window.parent.postMessage(
+      { source: 'billsoft-bhauu-auth', status: 'success', target: getPostAuthTarget(user, company) },
+      window.location.origin,
+    );
+  }, [company, user]);
 
   useEffect(() => {
     if (handledRef.current) return;
@@ -71,7 +88,7 @@ export default function AuthCallback() {
         setMessage(data.message || 'Bhauu Auth login successful.');
         toast.success('Signed in with Bhauu Auth');
         const target = data.isAdmin ? '/admin' : data.hasCompany ? '/dashboard' : '/company/setup';
-        if (window.parent && window.parent !== window) {
+        if (isEmbeddedWindow()) {
           window.parent.postMessage({ source: 'billsoft-bhauu-auth', status: 'success', target }, window.location.origin);
           return;
         }
@@ -89,8 +106,17 @@ export default function AuthCallback() {
   }, [completeBhauuLogin, navigate, params]);
 
   if (user) {
-    if (user.is_admin) return <Navigate to="/admin" replace />;
-    return <Navigate to={company ? '/dashboard' : '/company/setup'} replace />;
+    if (isEmbeddedWindow()) {
+      return (
+        <div className="min-h-screen flex items-center justify-center p-4 bg-white">
+          <div className="text-center">
+            <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-blue-600" />
+            <p className="text-sm font-medium text-slate-700">Opening BillSoft...</p>
+          </div>
+        </div>
+      );
+    }
+    return <Navigate to={getPostAuthTarget(user, company)} replace />;
   }
 
   const isError = status === 'error';
