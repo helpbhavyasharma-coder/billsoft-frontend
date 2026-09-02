@@ -4,9 +4,9 @@ import toast from 'react-hot-toast';
 import api from '../api/axios';
 
 const defaultAuthConfig = {
-  enabled: false,
+  enabled: true,
   gatewayUrl: 'https://auth.bhauu.online/backend/public',
-  clientId: '',
+  clientId: 'bag_live_khifglzxWlT-by47',
   redirectUri: 'https://softbill.bhauu.online/auth/callback',
 };
 
@@ -41,7 +41,7 @@ export default function Login() {
         if (!cancelled && data.success) setAuthConfig({ ...defaultAuthConfig, ...data });
       })
       .catch(() => {
-        if (!cancelled) setAuthConfig(defaultAuthConfig);
+        if (!cancelled) setAuthConfig((current) => current);
       });
     return () => {
       cancelled = true;
@@ -85,6 +85,7 @@ export default function Login() {
     url.searchParams.set('response_type', 'code');
     url.searchParams.set('scope', 'openid profile email');
     url.searchParams.set('state', embedState);
+    url.searchParams.set('display', 'bare');
     return url.toString();
   })();
 
@@ -95,8 +96,8 @@ export default function Login() {
           <iframe
             src={embedUrl}
             title="Secure Bhauu Auth Login"
-            className="block w-full overflow-hidden rounded-2xl border-0 bg-white shadow-xl"
-            style={{ height: 560 }}
+            className="block w-full border-0 bg-transparent"
+            style={{ height: 'min(620px, calc(100vh - 24px))' }}
           />
         ) : (
           <div className="card text-center">
