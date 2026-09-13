@@ -6,6 +6,7 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import AuthCallback from './pages/AuthCallback';
+import LandingPage from './landing/LandingPage';
 import Dashboard from './pages/Dashboard';
 import CompanySetup from './pages/CompanySetup';
 import InvoiceList from './pages/InvoiceList';
@@ -87,6 +88,10 @@ function AppRoutes() {
       {/* Public — logged-in users leave login/register without flashing dashboard then setup */}
       <Route
         path="/login"
+        element={<LandingPage />}
+      />
+      <Route
+        path="/auth/login"
         element={loading ? <AuthBootSpinner /> : user ? <PostAuthRedirect /> : <Login />}
       />
       <Route
