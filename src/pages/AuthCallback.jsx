@@ -35,6 +35,17 @@ function isEmbeddedWindow() {
   return window.parent && window.parent !== window;
 }
 
+function isPopupWindow() {
+  return Boolean(window.opener && window.opener !== window);
+}
+
+function notifyPopupOpener(payload) {
+  if (!isPopupWindow()) return false;
+  window.opener.postMessage({ source: 'bhauu-auth', ...payload }, window.location.origin);
+  window.setTimeout(() => window.close(), 50);
+  return true;
+}
+
 export default function AuthCallback() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -54,11 +65,20 @@ export default function AuthCallback() {
   useEffect(() => {
     if (handledRef.current) return;
     handledRef.current = true;
-    if (window.BhauuAuth?.completePopupCallback?.()) return;
 
     const code = params.get('code');
     const state = params.get('state');
     const error = params.get('error');
+    const errorDescription = params.get('error_description');
+
+    if (isPopupWindow() && (code || error) && state) {
+      notifyPopupOpener({ code, state, error: error || errorDescription || null });
+      setMessage('Opening BillSoft...');
+      return;
+    }
+
+    if (window.BhauuAuth?.completePopupCallback?.()) return;
+
     const expectedState = sessionStorage.getItem('bhauu_auth_state');
     const rememberedStates = readRememberedStates();
     const stateIsKnown = state && (state === expectedState || rememberedStates.includes(state));
@@ -80,10 +100,12 @@ export default function AuthCallback() {
     }
 
     let cancelled = false;
-    completeBhauuLogin(code, state)
+    const codeVerifier = sessionStorage.getItem('bhauu_auth_code_verifier') || undefined;
+    completeBhauuLogin(code, state, codeVerifier)
       .then((data) => {
         if (cancelled) return;
         forgetAuthState(state);
+        sessionStorage.removeItem('bhauu_auth_code_verifier');
         setStatus('success');
         setMessage(data.message || 'Bhauu Auth login successful.');
         toast.success('Signed in with Bhauu Auth');

@@ -202,13 +202,16 @@ export default function LandingPage() {
       const redirectUri = authConfig.redirectUri || `${window.location.origin}/auth/callback`;
       const result = await new Promise<{ code?: string; state?: string; codeVerifier?: string }>((resolve, reject) => {
         let timeoutId = 0;
+        let popupCheckId = 0;
         const cleanup = () => {
           window.removeEventListener('message', handleMessage);
           window.clearTimeout(timeoutId);
+          window.clearInterval(popupCheckId);
         };
         const handleMessage = (event: MessageEvent) => {
           const data = event.data || {};
-          if (event.origin !== window.location.origin || data.source !== 'bhauu-auth' || data.state !== state) return;
+          const isBhauuPopupMessage = data.source === 'bhauu-auth' || data.source === 'billsoft-bhauu-auth';
+          if (event.origin !== window.location.origin || !isBhauuPopupMessage || data.state !== state) return;
           cleanup();
           if (data.error) {
             reject(new Error(String(data.error)));
@@ -221,6 +224,12 @@ export default function LandingPage() {
           cleanup();
           reject(new Error('Bhauu Auth login timeout. Please try again.'));
         }, 180000);
+        popupCheckId = window.setInterval(() => {
+          if (popup.closed) {
+            cleanup();
+            reject(new Error('Login popup band ho gaya. Dobara Login dabayein.'));
+          }
+        }, 700);
 
         window.BhauuAuth!.buildAuthorizeUrl({
           clientId: authConfig.clientId,
