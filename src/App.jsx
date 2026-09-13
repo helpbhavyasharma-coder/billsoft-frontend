@@ -3,8 +3,6 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import Layout from './components/Layout';
-import Login from './pages/Login';
-import Register from './pages/Register';
 import AuthCallback from './pages/AuthCallback';
 import LandingPage from './landing/LandingPage';
 import Dashboard from './pages/Dashboard';
@@ -92,11 +90,11 @@ function AppRoutes() {
       />
       <Route
         path="/auth/login"
-        element={loading ? <AuthBootSpinner /> : user ? <PostAuthRedirect /> : <Login />}
+        element={loading ? <AuthBootSpinner /> : user ? <PostAuthRedirect /> : <Navigate to="/login" replace />}
       />
       <Route
         path="/register"
-        element={loading ? <AuthBootSpinner /> : user ? <PostAuthRedirect /> : <Register />}
+        element={loading ? <AuthBootSpinner /> : user ? <PostAuthRedirect /> : <Navigate to="/login" replace />}
       />
       <Route
         path="/auth/callback"

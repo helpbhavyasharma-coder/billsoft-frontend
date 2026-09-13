@@ -1,4 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import hotToast from 'react-hot-toast';
+import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { Features } from './components/Features';
@@ -18,7 +22,62 @@ import { ScrollReveal } from './components/ScrollReveal';
 import { initSmoothScroll } from './lib/smoothScroll';
 import { Language } from './lib/businessPresets';
 
+type BhauuAuthConfig = {
+  enabled: boolean;
+  clientId: string;
+  redirectUri: string;
+};
+
+declare global {
+  interface Window {
+    BhauuAuth?: {
+      login(input: {
+        clientId: string;
+        redirectUri: string;
+        mode?: 'popup' | 'redirect';
+      }): Promise<{ code?: string; state?: string; user?: unknown }>;
+    };
+    __bhauuAuthSdkLoading?: Promise<void>;
+  }
+}
+
+const fallbackAuthConfig: BhauuAuthConfig = {
+  enabled: true,
+  clientId: 'bag_live_khifglzxWlT-by47',
+  redirectUri: 'https://softbill.bhauu.online/auth/callback',
+};
+
+function loadBhauuAuthSdk() {
+  if (typeof window === 'undefined') return Promise.reject(new Error('Browser unavailable'));
+  if (window.BhauuAuth?.login) return Promise.resolve();
+  if (window.__bhauuAuthSdkLoading) return window.__bhauuAuthSdkLoading;
+
+  window.__bhauuAuthSdkLoading = new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>('script[data-bhauu-auth-sdk="true"]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error('Bhauu Auth SDK load failed')), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://auth.bhauu.online/sdk/bhauu-auth.js';
+    script.async = true;
+    script.dataset.bhauuAuthSdk = 'true';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Bhauu Auth SDK load failed'));
+    document.head.appendChild(script);
+  });
+
+  return window.__bhauuAuthSdkLoading;
+}
+
 export default function LandingPage() {
+  const navigate = useNavigate();
+  const { completeBhauuLogin } = useAuth();
+  const [authConfig, setAuthConfig] = useState<BhauuAuthConfig>(fallbackAuthConfig);
+  const [loginBusy, setLoginBusy] = useState(false);
+
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       const savedTheme = localStorage.getItem('billsoft_theme');
@@ -39,6 +98,32 @@ export default function LandingPage() {
   const [selectedPresetId, setSelectedPresetId] = useState<string>('kirana');
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [toast, setToast] = useState<ToastData | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get('/auth/bhauu/config')
+      .then(({ data }) => {
+        if (!cancelled && data?.success) {
+          setAuthConfig({
+            enabled: Boolean(data.enabled),
+            clientId: data.clientId || fallbackAuthConfig.clientId,
+            redirectUri: data.redirectUri || fallbackAuthConfig.redirectUri,
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setAuthConfig(fallbackAuthConfig);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    loadBhauuAuthSdk().catch(() => {
+      window.__bhauuAuthSdkLoading = undefined;
+    });
+  }, []);
 
   // Initialize ultra-smooth Lenis inertial scroll
   useEffect(() => {
@@ -70,8 +155,40 @@ export default function LandingPage() {
     localStorage.setItem('billsoft_lang', nextLang);
   };
 
-  const handleLogin = () => {
-    window.location.href = '/auth/login';
+  const handleLogin = async () => {
+    if (loginBusy) return;
+    if (!authConfig.enabled || !authConfig.clientId) {
+      hotToast.error('Bhauu Auth abhi configure nahi hua hai.');
+      return;
+    }
+
+    setLoginBusy(true);
+    try {
+      await loadBhauuAuthSdk();
+      if (!window.BhauuAuth?.login) {
+        throw new Error('Bhauu Auth SDK unavailable');
+      }
+
+      const result = await window.BhauuAuth.login({
+        clientId: authConfig.clientId,
+        redirectUri: authConfig.redirectUri || `${window.location.origin}/auth/callback`,
+        mode: 'popup',
+      });
+
+      if (!result?.code) {
+        throw new Error('Bhauu Auth did not return a login code');
+      }
+
+      const data = await completeBhauuLogin(result.code, result.state);
+      hotToast.success('Bhauu Auth se login ho gaya');
+      const target = data.isAdmin ? '/admin' : data.hasCompany ? '/dashboard' : '/company/setup';
+      navigate(target, { replace: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Bhauu Auth login failed';
+      hotToast.error(message);
+    } finally {
+      setLoginBusy(false);
+    }
   };
 
   const handleOpenSampleInvoice = () => {
