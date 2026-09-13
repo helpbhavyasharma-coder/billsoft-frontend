@@ -86,8 +86,12 @@ export default function AuthCallback() {
     const state = params.get('state');
     const error = params.get('error');
     const errorDescription = params.get('error_description');
+    const expectedState = sessionStorage.getItem('bhauu_auth_state');
+    const rememberedStates = readRememberedStates();
+    const stateIsKnown = state && (state === expectedState || rememberedStates.includes(state));
+    const hasLocalPopupState = Boolean(expectedState || rememberedStates.length);
 
-    if ((isPopupWindow() || isBhauuAuthNamedWindow()) && (code || error) && state) {
+    if ((code || error) && state && (!hasLocalPopupState || isPopupWindow() || isBhauuAuthNamedWindow())) {
       const payload = { code, state, error: error || errorDescription || null };
       if (!notifyPopupOpener(payload)) notifyPopupStorage(payload);
       setMessage('Opening BillSoft...');
@@ -95,10 +99,6 @@ export default function AuthCallback() {
     }
 
     if (window.BhauuAuth?.completePopupCallback?.()) return;
-
-    const expectedState = sessionStorage.getItem('bhauu_auth_state');
-    const rememberedStates = readRememberedStates();
-    const stateIsKnown = state && (state === expectedState || rememberedStates.includes(state));
 
     if (error) {
       setStatus('error');
