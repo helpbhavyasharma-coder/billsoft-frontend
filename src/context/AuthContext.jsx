@@ -57,8 +57,8 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
-  const completeBhauuLogin = async (code, state) => {
-    const { data } = await api.post('/auth/bhauu/exchange', { code, state });
+  const completeBhauuLogin = async (code, state, codeVerifier) => {
+    const { data } = await api.post('/auth/bhauu/exchange', { code, state, code_verifier: codeVerifier });
     if (data.success) {
       localStorage.setItem('token', data.token);
       await fetchMe();

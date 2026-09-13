@@ -36,6 +36,16 @@ declare global {
         redirectUri: string;
         mode?: 'popup' | 'redirect';
       }): Promise<{ code?: string; state?: string; user?: unknown }>;
+      buildAuthorizeUrl(input: {
+        clientId: string;
+        redirectUri: string;
+        gatewayUrl?: string;
+        scope?: string;
+        popup?: boolean;
+        state?: string;
+        nonce?: string;
+        codeVerifier?: string;
+      }): Promise<string>;
     };
     __bhauuAuthSdkLoading?: Promise<void>;
   }
@@ -46,6 +56,10 @@ const fallbackAuthConfig: BhauuAuthConfig = {
   clientId: 'bag_live_khifglzxWlT-by47',
   redirectUri: 'https://softbill.bhauu.online/auth/callback',
 };
+
+function createAuthState() {
+  return crypto.randomUUID?.().replace(/-/g, '') || `${Date.now()}${Math.random()}`.replace(/\D/g, '');
+}
 
 function loadBhauuAuthSdk() {
   if (typeof window === 'undefined') return Promise.reject(new Error('Browser unavailable'));
@@ -163,27 +177,78 @@ export default function LandingPage() {
     }
 
     setLoginBusy(true);
+    const popup = window.open(
+      'about:blank',
+      'bhauu_auth_login',
+      'popup=yes,width=480,height=640,resizable=yes,scrollbars=yes',
+    );
+
+    if (!popup) {
+      hotToast.error('Popup blocked. Browser me popups allow karke dobara try karein.');
+      setLoginBusy(false);
+      return;
+    }
+
+    popup.document.write('<!doctype html><title>Bhauu Auth</title><body style="font-family:system-ui;margin:0;display:grid;place-items:center;min-height:100vh;color:#0f172a;background:#f8fafc"><div>Opening Bhauu Auth...</div></body>');
+
     try {
       await loadBhauuAuthSdk();
-      if (!window.BhauuAuth?.login) {
+      if (!window.BhauuAuth?.buildAuthorizeUrl) {
         throw new Error('Bhauu Auth SDK unavailable');
       }
 
-      const result = await window.BhauuAuth.login({
-        clientId: authConfig.clientId,
-        redirectUri: authConfig.redirectUri || `${window.location.origin}/auth/callback`,
-        mode: 'popup',
+      const state = createAuthState();
+      const codeVerifier = createAuthState() + createAuthState();
+      const redirectUri = authConfig.redirectUri || `${window.location.origin}/auth/callback`;
+      const result = await new Promise<{ code?: string; state?: string; codeVerifier?: string }>((resolve, reject) => {
+        let timeoutId = 0;
+        const cleanup = () => {
+          window.removeEventListener('message', handleMessage);
+          window.clearTimeout(timeoutId);
+        };
+        const handleMessage = (event: MessageEvent) => {
+          const data = event.data || {};
+          if (event.origin !== window.location.origin || data.source !== 'bhauu-auth' || data.state !== state) return;
+          cleanup();
+          if (data.error) {
+            reject(new Error(String(data.error)));
+            return;
+          }
+          resolve({ code: data.code, state, codeVerifier });
+        };
+        window.addEventListener('message', handleMessage);
+        timeoutId = window.setTimeout(() => {
+          cleanup();
+          reject(new Error('Bhauu Auth login timeout. Please try again.'));
+        }, 180000);
+
+        window.BhauuAuth!.buildAuthorizeUrl({
+          clientId: authConfig.clientId,
+          redirectUri,
+          scope: 'profile email',
+          popup: true,
+          state,
+          codeVerifier,
+        })
+          .then((authUrl) => {
+            popup.location.href = authUrl;
+          })
+          .catch((error) => {
+            cleanup();
+            reject(error);
+          });
       });
 
       if (!result?.code) {
         throw new Error('Bhauu Auth did not return a login code');
       }
 
-      const data = await completeBhauuLogin(result.code, result.state);
+      const data = await completeBhauuLogin(result.code, result.state, result.codeVerifier);
       hotToast.success('Bhauu Auth se login ho gaya');
       const target = data.isAdmin ? '/admin' : data.hasCompany ? '/dashboard' : '/company/setup';
       navigate(target, { replace: true });
     } catch (error) {
+      if (!popup.closed) popup.close();
       const message = error instanceof Error ? error.message : 'Bhauu Auth login failed';
       hotToast.error(message);
     } finally {
