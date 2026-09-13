@@ -53,7 +53,7 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({ toast, onC
           {toast.type === 'login' && (
             <div className="mt-2 pt-2 border-t border-slate-800 flex items-center justify-between text-[11px] text-emerald-400">
               <span>Target: Bhauu Auth Managed Route</span>
-              <span className="font-mono bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">/login</span>
+              <span className="font-mono bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">/</span>
             </div>
           )}
         </div>

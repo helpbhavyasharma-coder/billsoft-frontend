@@ -39,24 +39,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const login = async (email, password) => {
-    const { data } = await api.post('/auth/login', { email, password });
-    if (data.success) {
-      localStorage.setItem('token', data.token);
-      await fetchMe();
-    }
-    return data;
-  };
-
-  const register = async (email, password) => {
-    const { data } = await api.post('/auth/register', { email, password });
-    if (data.success) {
-      localStorage.setItem('token', data.token);
-      await fetchMe();
-    }
-    return data;
-  };
-
   const completeBhauuLogin = async (code, state, codeVerifier) => {
     const { data } = await api.post('/auth/bhauu/exchange', { code, state, code_verifier: codeVerifier });
     if (data.success) {
@@ -83,7 +65,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, company, loading, login, register, completeBhauuLogin, logout, refreshCompany }}>
+    <AuthContext.Provider value={{ user, company, loading, completeBhauuLogin, logout, refreshCompany }}>
       {children}
     </AuthContext.Provider>
   );

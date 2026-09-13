@@ -34,18 +34,17 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401: expired/invalid session → login. Do NOT redirect on wrong password (login/register return 401 too).
+// Handle 401: expired/invalid session -> public landing. Do NOT redirect on wrong password.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       const reqPath = error.config?.url || '';
-      if (/auth\/(login|register)/.test(reqPath)) {
+      if (/auth\/(login|register|bhauu\/exchange)/.test(reqPath)) {
         return Promise.reject(error);
       }
       localStorage.removeItem('token');
-      const base = import.meta.env.BASE_URL || '/';
-      window.location.href = `${base}login`.replace(/\/{2,}/g, '/');
+      window.location.href = '/';
     }
     return Promise.reject(error);
   }

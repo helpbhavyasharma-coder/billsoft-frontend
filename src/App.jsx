@@ -40,7 +40,7 @@ function PrivateRoute({ children }) {
       </div>
     );
   }
-  return user ? children : <Navigate to="/login" replace />;
+  return user ? children : <Navigate to="/" replace />;
 }
 
 function CompanyRoute({ children }) {
@@ -52,7 +52,7 @@ function CompanyRoute({ children }) {
       </div>
     );
   }
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/" replace />;
   if (user.is_admin) return <Navigate to="/admin" replace />;
   if (!company) return <Navigate to="/company/setup" replace />;
   return children;
@@ -67,11 +67,11 @@ function AdminRoute({ children }) {
       </div>
     );
   }
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/" replace />;
   return user.is_admin ? children : <Navigate to="/dashboard" replace />;
 }
 
-/** After login/register: only send to dashboard when company exists; otherwise first-time setup. */
+/** After Bhauu Auth login: only send to dashboard when company exists; otherwise first-time setup. */
 function PostAuthRedirect() {
   const { user, company } = useAuth();
   if (user?.is_admin) return <Navigate to="/admin" replace />;
@@ -83,18 +83,18 @@ function AppRoutes() {
 
   return (
     <Routes>
-      {/* Public — logged-in users leave login/register without flashing dashboard then setup */}
+      {/* Public entry */}
       <Route
         path="/login"
-        element={<LandingPage />}
+        element={<Navigate to="/" replace />}
       />
       <Route
         path="/auth/login"
-        element={loading ? <AuthBootSpinner /> : user ? <PostAuthRedirect /> : <Navigate to="/login" replace />}
+        element={loading ? <AuthBootSpinner /> : user ? <PostAuthRedirect /> : <Navigate to="/" replace />}
       />
       <Route
         path="/register"
-        element={loading ? <AuthBootSpinner /> : user ? <PostAuthRedirect /> : <Navigate to="/login" replace />}
+        element={loading ? <AuthBootSpinner /> : user ? <PostAuthRedirect /> : <Navigate to="/" replace />}
       />
       <Route
         path="/auth/callback"

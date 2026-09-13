@@ -30,7 +30,7 @@ export default function Layout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const handleLogout = () => { logout(); navigate('/login'); };
+  const handleLogout = () => { logout(); navigate('/'); };
 
   const sidebarStyle = {
     backgroundColor: 'var(--bg-nav)',

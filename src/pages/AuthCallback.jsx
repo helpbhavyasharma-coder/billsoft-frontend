@@ -147,8 +147,8 @@ export default function AuthCallback() {
           </h2>
           <p className="mt-2 text-sm" style={{ color: 'var(--text-3)' }}>{message}</p>
           {isError && (
-            <Link to="/login" className="btn-primary mt-5 w-full">
-              Back to Login
+            <Link to="/" className="btn-primary mt-5 w-full">
+              Back to Home
             </Link>
           )}
         </div>
