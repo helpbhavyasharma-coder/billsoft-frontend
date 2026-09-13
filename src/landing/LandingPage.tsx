@@ -61,6 +61,10 @@ function createAuthState() {
   return crypto.randomUUID?.().replace(/-/g, '') || `${Date.now()}${Math.random()}`.replace(/\D/g, '');
 }
 
+function popupResultKey(state: string) {
+  return `bhauu_auth_popup_result_${state}`;
+}
+
 function loadBhauuAuthSdk() {
   if (typeof window === 'undefined') return Promise.reject(new Error('Browser unavailable'));
   if (window.BhauuAuth?.login) return Promise.resolve();
@@ -203,33 +207,64 @@ export default function LandingPage() {
       const result = await new Promise<{ code?: string; state?: string; codeVerifier?: string }>((resolve, reject) => {
         let timeoutId = 0;
         let popupCheckId = 0;
+        let storageCheckId = 0;
+        const storageKey = popupResultKey(state);
+        const finishFromPayload = (payload: { code?: string; state?: string; error?: string | null }) => {
+          if (payload.state !== state) return false;
+          cleanup();
+          localStorage.removeItem(storageKey);
+          if (payload.error) {
+            reject(new Error(String(payload.error)));
+            return true;
+          }
+          resolve({ code: payload.code, state, codeVerifier });
+          return true;
+        };
+        const readStoredResult = () => {
+          const raw = localStorage.getItem(storageKey);
+          if (!raw) return false;
+          try {
+            return finishFromPayload(JSON.parse(raw));
+          } catch {
+            localStorage.removeItem(storageKey);
+            return false;
+          }
+        };
         const cleanup = () => {
           window.removeEventListener('message', handleMessage);
+          window.removeEventListener('storage', handleStorage);
           window.clearTimeout(timeoutId);
           window.clearInterval(popupCheckId);
+          window.clearInterval(storageCheckId);
         };
         const handleMessage = (event: MessageEvent) => {
           const data = event.data || {};
           const isBhauuPopupMessage = data.source === 'bhauu-auth' || data.source === 'billsoft-bhauu-auth';
           if (event.origin !== window.location.origin || !isBhauuPopupMessage || data.state !== state) return;
-          cleanup();
-          if (data.error) {
-            reject(new Error(String(data.error)));
-            return;
+          finishFromPayload({ code: data.code, state: data.state, error: data.error });
+        };
+        const handleStorage = (event: StorageEvent) => {
+          if (event.key !== storageKey || !event.newValue) return;
+          try {
+            finishFromPayload(JSON.parse(event.newValue));
+          } catch {
+            localStorage.removeItem(storageKey);
           }
-          resolve({ code: data.code, state, codeVerifier });
         };
         window.addEventListener('message', handleMessage);
+        window.addEventListener('storage', handleStorage);
         timeoutId = window.setTimeout(() => {
           cleanup();
           reject(new Error('Bhauu Auth login timeout. Please try again.'));
         }, 180000);
         popupCheckId = window.setInterval(() => {
+          if (readStoredResult()) return;
           if (popup.closed) {
             cleanup();
             reject(new Error('Login popup band ho gaya. Dobara Login dabayein.'));
           }
         }, 700);
+        storageCheckId = window.setInterval(readStoredResult, 350);
 
         window.BhauuAuth!.buildAuthorizeUrl({
           clientId: authConfig.clientId,

@@ -39,9 +39,25 @@ function isPopupWindow() {
   return Boolean(window.opener && window.opener !== window);
 }
 
+function isBhauuAuthNamedWindow() {
+  return window.name === 'bhauu_auth_login';
+}
+
+function popupResultKey(state) {
+  return `bhauu_auth_popup_result_${state || 'unknown'}`;
+}
+
+function notifyPopupStorage(payload) {
+  if (!payload?.state) return false;
+  localStorage.setItem(popupResultKey(payload.state), JSON.stringify({ ...payload, createdAt: Date.now() }));
+  window.setTimeout(() => window.close(), 80);
+  return true;
+}
+
 function notifyPopupOpener(payload) {
   if (!isPopupWindow()) return false;
   window.opener.postMessage({ source: 'bhauu-auth', ...payload }, window.location.origin);
+  notifyPopupStorage(payload);
   window.setTimeout(() => window.close(), 50);
   return true;
 }
@@ -71,8 +87,9 @@ export default function AuthCallback() {
     const error = params.get('error');
     const errorDescription = params.get('error_description');
 
-    if (isPopupWindow() && (code || error) && state) {
-      notifyPopupOpener({ code, state, error: error || errorDescription || null });
+    if ((isPopupWindow() || isBhauuAuthNamedWindow()) && (code || error) && state) {
+      const payload = { code, state, error: error || errorDescription || null };
+      if (!notifyPopupOpener(payload)) notifyPopupStorage(payload);
       setMessage('Opening BillSoft...');
       return;
     }
