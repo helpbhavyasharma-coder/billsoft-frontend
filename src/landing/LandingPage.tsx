@@ -28,6 +28,9 @@ type BhauuAuthConfig = {
   redirectUri: string;
 };
 
+const BHAUU_AUTH_ORIGIN = 'https://auth.bhauu.online';
+const BHAUU_AUTH_SDK_URL = `${BHAUU_AUTH_ORIGIN}/sdk/bhauu-auth.js?v=20260914-originfix`;
+
 declare global {
   interface Window {
     BhauuAuth?: {
@@ -47,6 +50,7 @@ declare global {
         codeVerifier?: string;
       }): Promise<string>;
     };
+    __bhauuPopupCompleted?: boolean;
     __bhauuAuthSdkLoading?: Promise<void>;
   }
 }
@@ -79,7 +83,7 @@ function loadBhauuAuthSdk() {
     }
 
     const script = document.createElement('script');
-    script.src = 'https://auth.bhauu.online/sdk/bhauu-auth.js';
+    script.src = BHAUU_AUTH_SDK_URL;
     script.async = true;
     script.dataset.bhauuAuthSdk = 'true';
     script.onload = () => resolve();
@@ -181,6 +185,7 @@ export default function LandingPage() {
     }
 
     setLoginBusy(true);
+    window.__bhauuPopupCompleted = false;
     const popup = window.open(
       'about:blank',
       'bhauu_auth_login',
@@ -204,13 +209,25 @@ export default function LandingPage() {
       const state = createAuthState();
       const codeVerifier = createAuthState() + createAuthState();
       const redirectUri = authConfig.redirectUri || `${window.location.origin}/auth/callback`;
+      const rememberedStates = JSON.parse(sessionStorage.getItem('bhauu_auth_states') || '[]');
+      const nextStates = Array.isArray(rememberedStates)
+        ? [...rememberedStates.filter(Boolean).slice(-4), state]
+        : [state];
+      sessionStorage.setItem('bhauu_auth_state', state);
+      sessionStorage.setItem('bhauu_auth_states', JSON.stringify(nextStates));
+      sessionStorage.setItem('bhauu_auth_code_verifier', codeVerifier);
       const result = await new Promise<{ code?: string; state?: string; codeVerifier?: string }>((resolve, reject) => {
         let timeoutId = 0;
         let popupCheckId = 0;
         let storageCheckId = 0;
+        let popupCloseGraceId = 0;
+        let popupClosedSeen = false;
+        let popupCompleted = false;
         const storageKey = popupResultKey(state);
         const finishFromPayload = (payload: { code?: string; state?: string; error?: string | null }) => {
           if (payload.state !== state) return false;
+          popupCompleted = true;
+          window.__bhauuPopupCompleted = true;
           cleanup();
           localStorage.removeItem(storageKey);
           if (payload.error) {
@@ -234,13 +251,15 @@ export default function LandingPage() {
           window.removeEventListener('message', handleMessage);
           window.removeEventListener('storage', handleStorage);
           window.clearTimeout(timeoutId);
+          window.clearTimeout(popupCloseGraceId);
           window.clearInterval(popupCheckId);
           window.clearInterval(storageCheckId);
         };
         const handleMessage = (event: MessageEvent) => {
           const data = event.data || {};
+          const allowedOrigins = [BHAUU_AUTH_ORIGIN, window.location.origin];
           const isBhauuPopupMessage = data.source === 'bhauu-auth' || data.source === 'billsoft-bhauu-auth';
-          if (event.origin !== window.location.origin || !isBhauuPopupMessage || data.state !== state) return;
+          if (!allowedOrigins.includes(event.origin) || !isBhauuPopupMessage || data.state !== state) return;
           finishFromPayload({ code: data.code, state: data.state, error: data.error });
         };
         const handleStorage = (event: StorageEvent) => {
@@ -259,9 +278,13 @@ export default function LandingPage() {
         }, 180000);
         popupCheckId = window.setInterval(() => {
           if (readStoredResult()) return;
-          if (popup.closed) {
-            cleanup();
-            reject(new Error('Login popup band ho gaya. Dobara Login dabayein.'));
+          if (popup.closed && !popupClosedSeen) {
+            popupClosedSeen = true;
+            popupCloseGraceId = window.setTimeout(() => {
+              if (popupCompleted || window.__bhauuPopupCompleted || readStoredResult()) return;
+              cleanup();
+              reject(new Error('Login popup band ho gaya. Dobara Login dabayein.'));
+            }, 1200);
           }
         }, 700);
         storageCheckId = window.setInterval(readStoredResult, 350);
@@ -288,6 +311,8 @@ export default function LandingPage() {
       }
 
       const data = await completeBhauuLogin(result.code, result.state, result.codeVerifier);
+      sessionStorage.removeItem('bhauu_auth_state');
+      sessionStorage.removeItem('bhauu_auth_code_verifier');
       hotToast.success('Bhauu Auth se login ho gaya');
       const target = data.isAdmin ? '/admin' : data.hasCompany ? '/dashboard' : '/company/setup';
       navigate(target, { replace: true });
