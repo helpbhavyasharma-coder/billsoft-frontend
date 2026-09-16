@@ -292,6 +292,7 @@ export default function LandingPage() {
         window.BhauuAuth!.buildAuthorizeUrl({
           clientId: authConfig.clientId,
           redirectUri,
+          gatewayUrl: BHAUU_AUTH_ORIGIN,
           scope: 'profile email',
           popup: true,
           state,
