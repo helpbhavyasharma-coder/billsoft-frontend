@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import toast from "react-hot-toast";
-import { ArrowLeft, Plus, Trash2, X, Phone, MapPin, IndianRupee, RotateCcw } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, X, Phone, MapPin, IndianRupee, RotateCcw, Eye, FileText, Ban } from "lucide-react";
 import { format } from "date-fns";
 import { StatusBadge } from '../components/ui';
 
@@ -24,18 +24,25 @@ export default function PartyLedger() {
   const [showPayModal, setShowPayModal] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [selectedPurchase, setSelectedPurchase] = useState(null);
+  const [viewingPurchase, setViewingPurchase] = useState(null);
   const [paying, setPaying] = useState(false);
   const [returning, setReturning] = useState(false);
-  const [activeTab, setActiveTab] = useState("invoices");
+  const [activeTab, setActiveTab] = useState("auto"); // auto resolves based on party type
+  const [viewMode, setViewMode] = useState("auto"); // for 'both' type: 'customer' or 'supplier'
+
   const [payForm, setPayForm] = useState({
     invoice_id: "",
-    payment_type: "invoice",
+    purchase_id: "",
+    payment_type: "general",
     amount: "",
     payment_date: format(new Date(), "yyyy-MM-dd"),
     payment_mode: "cash",
     reference_no: "",
     notes: "",
+    idempotency_key: "",
   });
+
   const [returnForm, setReturnForm] = useState({
     invoice_id: "",
     amount: "",
@@ -50,37 +57,71 @@ export default function PartyLedger() {
     setLoading(true);
     try {
       const { data: res } = await api.get("/reports/party-ledger/" + partyId);
-      if (res.success) setData(res);
+      if (res.success) {
+        setData(res);
+        if (viewMode === "auto") {
+          setViewMode(res.party?.party_type === "supplier" ? "supplier" : "customer");
+        }
+      }
     } catch { toast.error("Failed to load ledger."); }
     finally { setLoading(false); }
   };
 
-  const openPayModal = (invoice) => {
+  const generateIdempotencyKey = () => `pay_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+  const openCustomerPayModal = (invoice) => {
     const outstanding = Math.max(parseFloat(invoice.balance ?? 0), 0);
     setSelectedInvoice(invoice);
+    setSelectedPurchase(null);
     setPayForm({
       invoice_id: invoice.id,
+      purchase_id: "",
       payment_type: "invoice",
       amount: outstanding.toFixed(2),
       payment_date: format(new Date(), "yyyy-MM-dd"),
       payment_mode: "cash",
       reference_no: "",
       notes: "",
+      idempotency_key: generateIdempotencyKey(),
     });
+    setPaying(false);
+    setShowPayModal(true);
+  };
+
+  const openSupplierPayModal = (purchase) => {
+    const outstanding = Math.max(parseFloat(purchase.payable ?? (parseFloat(purchase.grand_total || 0) - parseFloat(purchase.amount_paid || 0))), 0);
+    setSelectedPurchase(purchase);
+    setSelectedInvoice(null);
+    setPayForm({
+      invoice_id: "",
+      purchase_id: purchase.id,
+      payment_type: "purchase",
+      amount: outstanding.toFixed(2),
+      payment_date: format(new Date(), "yyyy-MM-dd"),
+      payment_mode: "cash",
+      reference_no: "",
+      notes: "",
+      idempotency_key: generateIdempotencyKey(),
+    });
+    setPaying(false);
     setShowPayModal(true);
   };
 
   const openGeneralPayModal = () => {
     setSelectedInvoice(null);
+    setSelectedPurchase(null);
     setPayForm({
       invoice_id: "",
+      purchase_id: "",
       payment_type: "general",
       amount: "",
       payment_date: format(new Date(), "yyyy-MM-dd"),
       payment_mode: "cash",
       reference_no: "",
       notes: "",
+      idempotency_key: generateIdempotencyKey(),
     });
+    setPaying(false);
     setShowPayModal(true);
   };
 
@@ -98,20 +139,47 @@ export default function PartyLedger() {
 
   const handlePayment = async (e) => {
     e.preventDefault();
+    if (paying) return;
     if (payForm.payment_type === "invoice" && !payForm.invoice_id) { toast.error("Select an invoice."); return; }
+    if (payForm.payment_type === "purchase" && !payForm.purchase_id) { toast.error("Select a purchase bill."); return; }
     if (!payForm.amount || parseFloat(payForm.amount) <= 0) { toast.error("Enter valid amount."); return; }
     setPaying(true);
+
+    const currentKey = payForm.idempotency_key || generateIdempotencyKey();
+    if (!payForm.idempotency_key) {
+      setPayForm(p => ({ ...p, idempotency_key: currentKey }));
+    }
+
     try {
       const payload = {
         ...payForm,
+        idempotency_key: currentKey,
         party_id: parseInt(partyId),
         invoice_id: payForm.payment_type === "invoice" ? parseInt(payForm.invoice_id) : null,
+        purchase_id: payForm.payment_type === "purchase" ? parseInt(payForm.purchase_id) : null,
       };
       const { data: res } = await api.post("/payments", payload);
       if (res.success) {
-        toast.success("Payment recorded!");
+        toast.success(res.is_idempotent_replay ? "Payment already recorded (replayed)." : "Payment recorded!");
         setShowPayModal(false);
-        fetchLedger();
+        setPayForm({
+          invoice_id: "",
+          purchase_id: "",
+          payment_type: "general",
+          amount: "",
+          payment_date: format(new Date(), "yyyy-MM-dd"),
+          payment_mode: "cash",
+          reference_no: "",
+          notes: "",
+          idempotency_key: "",
+        });
+
+        try {
+          await fetchLedger();
+        } catch (refreshErr) {
+          console.error("Ledger display refresh failed after successful payment:", refreshErr);
+          toast.warning("Payment recorded successfully, but ledger display failed to refresh. Please refresh page.");
+        }
       }
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed.");
@@ -157,6 +225,15 @@ export default function PartyLedger() {
     } catch { toast.error("Failed to delete goods return."); }
   };
 
+  const loadPurchaseDetail = async (purchaseId) => {
+    try {
+      const { data: res } = await api.get("/purchases/" + purchaseId);
+      if (res.success) setViewingPurchase(res.purchase);
+    } catch {
+      toast.error("Failed to load purchase details.");
+    }
+  };
+
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full" />
@@ -164,9 +241,18 @@ export default function PartyLedger() {
   );
   if (!data) return <div className="text-center py-12" style={{color:'var(--text-3)'}}>Party not found.</div>;
 
-  const { party, invoices, payments, returns = [], summary } = data;
+  const { party, invoices = [], purchases = [], cancelled_purchases = [], payments = [], returns = [], summary = {}, customer_summary = {}, supplier_summary = {} } = data;
+  const isSupplier = party.party_type === "supplier";
+  const isBoth = party.party_type === "both";
+  const currentView = isBoth ? (viewMode === "supplier" ? "supplier" : "customer") : (isSupplier ? "supplier" : "customer");
+  const activeSummary = currentView === "supplier" ? (supplier_summary.total_bills !== undefined ? supplier_summary : summary) : (customer_summary.total_invoices !== undefined ? customer_summary : summary);
+
   const unpaidInvoices = invoices.filter(i => i.payment_status !== "paid");
-  const openingDue = Math.max(parseFloat(summary.opening_balance || 0) - parseFloat(summary.general_paid || 0), 0);
+  const unpaidPurchases = purchases.filter(p => p.payment_status !== "paid");
+  const openingDue = Math.max(parseFloat(activeSummary.opening_balance || 0) - parseFloat(activeSummary.general_paid || 0), 0);
+
+  // Determine current active tab
+  const resolvedTab = activeTab === "auto" ? (currentView === "supplier" ? "purchases" : "invoices") : activeTab;
 
   return (
     <div className="max-w-4xl mx-auto space-y-4">
@@ -179,17 +265,40 @@ export default function PartyLedger() {
           </button>
           <div>
             <h1 className="text-xl font-bold" style={{color:'var(--text)'}}>{party.name}</h1>
-            <p className="text-sm" style={{color:'var(--text-3)'}}>Party Ledger</p>
+            <p className="text-sm" style={{color:'var(--text-3)'}}>
+              {currentView === "supplier" ? "Supplier Ledger (खाता विवरण - लेनदार)" : "Customer Ledger (खाता विवरण - देनदार)"}
+            </p>
           </div>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <button onClick={() => openReturnModal()}
-            className="btn-secondary flex items-center gap-2 text-sm text-orange-700 border-orange-200 hover:bg-orange-50">
-            <RotateCcw className="w-4 h-4" /> Goods Return
-          </button>
+
+        <div className="flex gap-2 flex-wrap items-center">
+          {isBoth && (
+            <div className="flex rounded-lg overflow-hidden border mr-2" style={{borderColor:'var(--border)'}}>
+              <button
+                type="button"
+                onClick={() => { setViewMode("customer"); setActiveTab("invoices"); }}
+                className={`px-3 py-1.5 text-xs font-semibold ${currentView === "customer" ? "bg-blue-600 text-white" : "bg-transparent text-gray-600"}`}>
+                Sales / Receivable
+              </button>
+              <button
+                type="button"
+                onClick={() => { setViewMode("supplier"); setActiveTab("purchases"); }}
+                className={`px-3 py-1.5 text-xs font-semibold ${currentView === "supplier" ? "bg-purple-600 text-white" : "bg-transparent text-gray-600"}`}>
+                Purchases / Payable
+              </button>
+            </div>
+          )}
+
+          {currentView === "customer" && (
+            <button onClick={() => openReturnModal()}
+              className="btn-secondary flex items-center gap-2 text-sm text-orange-700 border-orange-200 hover:bg-orange-50">
+              <RotateCcw className="w-4 h-4" /> Goods Return
+            </button>
+          )}
+
           <button onClick={openGeneralPayModal}
             className="btn-success flex items-center gap-2 text-sm">
-            <Plus className="w-4 h-4" /> Add Payment
+            <Plus className="w-4 h-4" /> {currentView === "supplier" ? "Record Payment" : "Add Payment"}
           </button>
         </div>
       </div>
@@ -225,201 +334,345 @@ export default function PartyLedger() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div className="card text-center py-3 px-2">
-          <p className="text-2xl font-bold" style={{color:'var(--text)'}}>{summary.total_invoices}</p>
-          <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>Total Bills</p>
+          <p className="text-2xl font-bold" style={{color:'var(--text)'}}>
+            {currentView === "supplier" ? (activeSummary.total_bills ?? purchases.length) : (activeSummary.total_invoices ?? invoices.length)}
+          </p>
+          <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>
+            {currentView === "supplier" ? "Total Bills" : "Total Bills"}
+          </p>
         </div>
         <div className="card text-center py-3 px-2">
-          <p className="text-lg font-bold" style={{color:'var(--text)'}}>₹{fmt(summary.total_amount)}</p>
-          <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>Total Business</p>
+          <p className="text-lg font-bold" style={{color:'var(--text)'}}>₹{fmt(activeSummary.total_amount || activeSummary.total_purchases)}</p>
+          <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>
+            {currentView === "supplier" ? "Total Purchases" : "Total Business"}
+          </p>
         </div>
         <div className="card text-center py-3 px-2" style={{borderColor:'rgba(34,197,94,0.4)'}}>
-          <p className="text-lg font-bold text-green-600">₹{fmt(summary.total_paid)}</p>
-          <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>Total Received</p>
+          <p className="text-lg font-bold text-green-600">₹{fmt(activeSummary.total_paid)}</p>
+          <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>
+            {currentView === "supplier" ? "Total Paid" : "Total Received"}
+          </p>
         </div>
         <div className="card text-center py-3 px-2" style={{borderColor:'rgba(249,115,22,0.4)'}}>
-          <p className="text-lg font-bold text-orange-600">₹{fmt(summary.goods_return_total)}</p>
-          <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>Goods Return</p>
+          <p className="text-lg font-bold text-orange-600">₹{fmt(activeSummary.goods_return_total || 0)}</p>
+          <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>
+            {currentView === "supplier" ? "Debit Notes / Adj." : "Goods Return"}
+          </p>
         </div>
         <div className="card text-center py-3 px-2" style={{borderColor:'rgba(220,38,38,0.4)'}}>
-          <p className="text-lg font-bold text-red-600">₹{fmt(summary.outstanding)}</p>
-          <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>Outstanding</p>
+          <p className="text-lg font-bold text-red-600">₹{fmt(activeSummary.outstanding ?? activeSummary.payable)}</p>
+          <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>
+            {currentView === "supplier" ? "Payable to Supplier" : "Outstanding Due"}
+          </p>
         </div>
       </div>
 
       {/* Opening Balance Banner */}
-      {parseFloat(summary.opening_balance || 0) > 0 && (
+      {parseFloat(activeSummary.opening_balance || 0) > 0 && (
         <div className="rounded-lg p-3 flex items-center justify-between flex-wrap gap-2"
           style={{backgroundColor:'rgba(234,179,8,0.1)', border:'1px solid rgba(234,179,8,0.4)'}}>
           <div>
             <p className="text-sm font-semibold text-yellow-700">Opening Balance (पिछला बकाया)</p>
             <p className="text-xs text-yellow-600">Purana bacha hua balance jo is ledger me add kiya gaya hai.</p>
           </div>
-          <span className="text-lg font-bold text-yellow-700">₹{fmt(summary.opening_balance)}</span>
+          <span className="text-lg font-bold text-yellow-700">₹{fmt(activeSummary.opening_balance)}</span>
+        </div>
+      )}
+
+      {/* On-Account / Advance Payments Banner (Hidden on customer ledger for clean view) */}
+      {currentView === "supplier" && parseFloat(activeSummary.general_paid || 0) > 0 && (
+        <div className="rounded-lg p-3 flex items-center justify-between flex-wrap gap-2"
+          style={{backgroundColor:'rgba(59,130,246,0.08)', border:'1px solid rgba(59,130,246,0.3)'}}>
+          <div>
+            <p className="text-sm font-semibold text-blue-700">
+              On-Account Payments (खाते में भुगतान)
+            </p>
+            <p className="text-xs text-blue-600">
+              Unallocated payments made to supplier not linked to a specific purchase bill.
+            </p>
+          </div>
+          <span className="text-lg font-bold text-blue-700">₹{fmt(activeSummary.general_paid)}</span>
         </div>
       )}
 
       {/* Outstanding Alert */}
-      {parseFloat(summary.outstanding) > 0 && (
+      {parseFloat(activeSummary.outstanding ?? activeSummary.payable ?? 0) > 0 && (
         <div className="rounded-2xl p-4 flex items-center justify-between flex-wrap gap-3"
           style={{backgroundColor:'rgba(220,38,38,0.1)', border:'1px solid rgba(220,38,38,0.3)'}}>
           <div>
-            <p className="font-semibold text-red-700">Outstanding Due</p>
+            <p className="font-semibold text-red-700">
+              {currentView === "supplier" ? "Pending Supplier Balance (देय राशि)" : "Outstanding Due (प्राप्य राशि)"}
+            </p>
             <p className="text-sm text-red-600">
-              {unpaidInvoices.length} invoice(s) pending payment
-              {parseFloat(summary.goods_return_total || 0) > 0 ? " after goods return adjustment ₹" + fmt(summary.goods_return_total) : ""}
+              {currentView === "supplier"
+                ? `${unpaidPurchases.length} purchase bill(s) pending payment`
+                : `${unpaidInvoices.length} invoice(s) pending payment`}
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-2xl font-bold text-red-700">₹{fmt(summary.outstanding)}</span>
+            <span className="text-2xl font-bold text-red-700">₹{fmt(activeSummary.outstanding ?? activeSummary.payable)}</span>
             <button onClick={openGeneralPayModal} className="btn-danger text-sm py-1.5">
-              Collect Now
+              {currentView === "supplier" ? "Pay Now" : "Collect Now"}
             </button>
           </div>
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 rounded-xl w-fit" style={{backgroundColor:'var(--bg-muted)', border:'1px solid var(--border)'}}>
-        {[
-          { id: "invoices", label: "Invoices (" + invoices.length + ")" },
-          { id: "payments", label: "Payments (" + (payments?.length || 0) + ")" },
-          { id: "returns", label: "Returns (" + returns.length + ")" },
-        ].map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
-            style={
-              activeTab === tab.id
-                ? {backgroundColor:'var(--bg-card)', color:'var(--text)', boxShadow:'0 1px 3px rgba(0,0,0,0.1)'}
-                : {color:'var(--text-3)'}
-            }>
-            {tab.label}
-          </button>
-        ))}
+      <div className="flex gap-1 p-1 rounded-xl w-fit flex-wrap" style={{backgroundColor:'var(--bg-muted)', border:'1px solid var(--border)'}}>
+        {currentView === "supplier" ? (
+          [
+            { id: "purchases", label: "Purchases (" + purchases.length + ")" },
+            { id: "payments", label: "Payments (" + payments.length + ")" },
+            { id: "cancelled", label: "Cancelled Bills (" + cancelled_purchases.length + ")" },
+          ].map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
+              style={
+                resolvedTab === tab.id
+                  ? {backgroundColor:'var(--bg-card)', color:'var(--text)', boxShadow:'0 1px 3px rgba(0,0,0,0.1)'}
+                  : {color:'var(--text-3)'}
+              }>
+              {tab.label}
+            </button>
+          ))
+        ) : (
+          [
+            { id: "invoices", label: "Invoices (" + invoices.length + ")" },
+            { id: "payments", label: "Payments (" + payments.length + ")" },
+            { id: "returns", label: "Returns (" + returns.length + ")" },
+          ].map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
+              style={
+                resolvedTab === tab.id
+                  ? {backgroundColor:'var(--bg-card)', color:'var(--text)', boxShadow:'0 1px 3px rgba(0,0,0,0.1)'}
+                  : {color:'var(--text-3)'}
+              }>
+              {tab.label}
+            </button>
+          ))
+        )}
       </div>
 
-      {/* Invoices Tab */}
-      {activeTab === "invoices" && (
+      {/* Supplier Purchases Tab */}
+      {currentView === "supplier" && resolvedTab === "purchases" && (
         <div className="card p-0 overflow-hidden">
-          {invoices.length === 0 ? (
-            <p className="text-center py-10 text-sm" style={{color:'var(--text-3)'}}>No invoices found.</p>
+          {purchases.length === 0 ? (
+            <p className="text-center py-10 text-sm" style={{color:'var(--text-3)'}}>No purchase bills found for this supplier.</p>
           ) : (
             <>
-              {/* Desktop */}
+              {/* Desktop View */}
               <div className="hidden md:block overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full text-sm">
                   <thead>
                     <tr style={{borderBottom:'1px solid var(--border)'}}>
-                      <th className="table-header text-left">Invoice No.</th>
                       <th className="table-header text-left">Date</th>
+                      <th className="table-header text-left">Bill No.</th>
                       <th className="table-header text-right">Amount</th>
                       <th className="table-header text-right">Paid</th>
-                      <th className="table-header text-right">Return</th>
-                      <th className="table-header text-right">Balance</th>
+                      <th className="table-header text-right">Payable</th>
                       <th className="table-header text-center">Status</th>
-                      <th className="table-header text-center">Action</th>
+                      <th className="table-header text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {invoices.map((inv) => {
-                      const balance = Math.max(parseFloat(inv.balance ?? 0), 0);
+                    {purchases.map(purchase => {
+                      const payable = Math.max(parseFloat(purchase.payable ?? (parseFloat(purchase.grand_total || 0) - parseFloat(purchase.amount_paid || 0))), 0);
                       return (
-                        <tr key={inv.id}
-                          style={{borderBottom:'1px solid var(--border)'}}
-                          onMouseEnter={e => e.currentTarget.style.backgroundColor='var(--bg-hover)'}
-                          onMouseLeave={e => e.currentTarget.style.backgroundColor='transparent'}>
-                          <td className="table-cell">
-                            <Link to={"/invoices/" + inv.id} className="font-medium text-blue-600 hover:text-blue-700">{inv.invoice_no}</Link>
-                          </td>
-                          <td className="table-cell" style={{color:'var(--text-3)'}}>{inv.invoice_date ? format(new Date(inv.invoice_date), "dd MMM yyyy") : "-"}</td>
-                          <td className="table-cell text-right font-medium" style={{color:'var(--text-2)'}}>₹{fmt(inv.grand_total)}</td>
-                          <td className="table-cell text-right text-green-600 font-medium">₹{fmt(inv.amount_paid)}</td>
-                          <td className="table-cell text-right text-orange-600 font-medium">₹{fmt(inv.goods_return_total)}</td>
-                          <td className={"table-cell text-right font-bold " + (balance > 0 ? "text-red-600" : "text-green-600")}>
-                            ₹{fmt(balance)}
-                          </td>
+                        <tr key={purchase.id} style={{borderBottom:'1px solid var(--border)'}} className="hover:bg-gray-50/50">
+                          <td className="table-cell">{format(new Date(purchase.purchase_date), "dd MMM yyyy")}</td>
+                          <td className="table-cell font-medium">{purchase.bill_no || `#${purchase.id}`}</td>
+                          <td className="table-cell text-right font-bold">₹{fmt(purchase.grand_total)}</td>
+                          <td className="table-cell text-right text-green-600 font-medium">₹{fmt(purchase.amount_paid)}</td>
+                          <td className="table-cell text-right text-red-600 font-bold">₹{fmt(payable)}</td>
+                          <td className="table-cell text-center"><StatusBadge status={purchase.payment_status} /></td>
                           <td className="table-cell text-center">
-                            <StatusBadge status={inv.payment_status} />
-                          </td>
-                          <td className="table-cell text-center">
-                            {inv.payment_status !== "paid" && (
-                              <div className="flex justify-center gap-1">
-                                <button onClick={() => openPayModal(inv)}
-                                  className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded-lg font-medium">
+                            <div className="flex items-center justify-center gap-2">
+                              {payable > 0 && (
+                                <button onClick={() => openSupplierPayModal(purchase)} className="btn-primary text-xs py-1 px-2.5">
                                   + Pay
                                 </button>
-                                <button onClick={() => openReturnModal(inv)}
-                                  className="text-xs bg-orange-500 hover:bg-orange-600 text-white px-2 py-1 rounded-lg font-medium">
-                                  Return
-                                </button>
-                              </div>
-                            )}
+                              )}
+                              <button onClick={() => loadPurchaseDetail(purchase.id)} className="p-1 rounded text-blue-600 hover:bg-blue-50" title="View Bill">
+                                <Eye className="w-4 h-4" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
                     })}
                   </tbody>
-                  <tfoot>
-                    <tr style={{backgroundColor:'var(--bg-muted)', borderTop:'2px solid var(--border)'}}>
-                      <td colSpan={2} className="table-cell font-bold" style={{color:'var(--text)'}}>TOTAL</td>
-                      <td className="table-cell text-right font-bold" style={{color:'var(--text)'}}>₹{fmt(summary.total_amount)}</td>
-                      <td className="table-cell text-right font-bold text-green-600">₹{fmt(summary.total_paid)}</td>
-                      <td className="table-cell text-right font-bold text-orange-600">₹{fmt(summary.goods_return_total)}</td>
-                      <td className="table-cell text-right font-bold text-red-600">₹{fmt(summary.outstanding)}</td>
-                      <td colSpan={2}></td>
-                    </tr>
-                  </tfoot>
                 </table>
               </div>
 
-              {/* Mobile Cards */}
+              {/* Mobile View */}
               <div className="md:hidden p-3 space-y-2">
-                {invoices.map((inv) => {
-                  const balance = Math.max(parseFloat(inv.balance ?? 0), 0);
+                {purchases.map(purchase => {
+                  const payable = Math.max(parseFloat(purchase.payable ?? (parseFloat(purchase.grand_total || 0) - parseFloat(purchase.amount_paid || 0))), 0);
                   return (
-                    <div key={inv.id} className="mobile-card">
-                      <div className="flex items-start justify-between mb-2">
+                    <div key={purchase.id} className="mobile-card">
+                      <div className="flex items-start justify-between gap-3 mb-2">
                         <div>
-                          <Link to={"/invoices/" + inv.id} className="font-bold text-blue-600 text-sm">{inv.invoice_no}</Link>
-                          <p className="text-xs mt-0.5" style={{color:'var(--text-3)'}}>{inv.invoice_date ? format(new Date(inv.invoice_date), "dd MMM yyyy") : "-"}</p>
+                          <p className="font-bold text-sm" style={{color:'var(--text)'}}>{purchase.bill_no || `#${purchase.id}`}</p>
+                          <p className="text-xs" style={{color:'var(--text-3)'}}>{format(new Date(purchase.purchase_date), "dd MMM yyyy")}</p>
                         </div>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold
-                          ${inv.payment_status === 'paid' ? 'badge-paid' :
-                            inv.payment_status === 'partial' ? 'badge-partial' : 'badge-unpaid'}`}>
-                          {inv.payment_status}
-                        </span>
+                        <StatusBadge status={purchase.payment_status} />
                       </div>
-                      <div className="grid grid-cols-2 gap-2 mb-3">
-                        <div className="stat-box">
-                          <p className="text-xs">Bill</p>
-                          <span className="text-xs">₹{fmt(inv.grand_total)}</span>
-                        </div>
-                        <div className="stat-box" style={{backgroundColor:'rgba(16,185,129,0.08)', borderColor:'rgba(16,185,129,0.2)'}}>
-                          <p className="text-xs">Paid</p>
-                          <span className="text-xs text-green-600">₹{fmt(inv.amount_paid)}</span>
-                        </div>
-                        <div className="stat-box" style={{backgroundColor:'rgba(249,115,22,0.08)', borderColor:'rgba(249,115,22,0.2)'}}>
-                          <p className="text-xs">Return</p>
-                          <span className="text-xs text-orange-600">₹{fmt(inv.goods_return_total)}</span>
-                        </div>
-                        <div className="stat-box" style={{
-                          backgroundColor: balance > 0 ? 'rgba(220,38,38,0.08)' : 'rgba(16,185,129,0.08)',
-                          borderColor: balance > 0 ? 'rgba(220,38,38,0.2)' : 'rgba(16,185,129,0.2)'
-                        }}>
-                          <p className="text-xs">Balance</p>
-                          <span className={"text-xs font-bold " + (balance > 0 ? "text-red-500" : "text-green-600")}>₹{fmt(balance)}</span>
-                        </div>
+                      <div className="grid grid-cols-3 gap-2 mb-2 text-xs">
+                        <div><span style={{color:'var(--text-3)'}}>Total:</span> <span className="font-bold">₹{fmt(purchase.grand_total)}</span></div>
+                        <div><span style={{color:'var(--text-3)'}}>Paid:</span> <span className="text-green-600 font-semibold">₹{fmt(purchase.amount_paid)}</span></div>
+                        <div><span style={{color:'var(--text-3)'}}>Payable:</span> <span className="text-red-600 font-bold">₹{fmt(payable)}</span></div>
                       </div>
-                      {inv.payment_status !== "paid" && (
-                        <div className="grid grid-cols-2 gap-2">
-                          <button onClick={() => openPayModal(inv)}
-                            className="w-full text-center text-xs font-semibold py-2 rounded-xl"
-                            style={{backgroundColor:'rgba(22,163,74,0.15)', color:'#16a34a', border:'1px solid rgba(22,163,74,0.3)'}}>
-                            + Collect (₹{fmt(balance)})
+                      <div className="flex gap-2">
+                        {payable > 0 && (
+                          <button onClick={() => openSupplierPayModal(purchase)} className="btn-primary text-xs py-1.5 flex-1">
+                            + Pay (₹{fmt(payable)})
                           </button>
-                          <button onClick={() => openReturnModal(inv)}
-                            className="w-full text-center text-xs font-semibold py-2 rounded-xl"
-                            style={{backgroundColor:'rgba(249,115,22,0.15)', color:'#ea580c', border:'1px solid rgba(249,115,22,0.3)'}}>
-                            Goods Return
+                        )}
+                        <button onClick={() => loadPurchaseDetail(purchase.id)} className="btn-secondary text-xs py-1.5 px-3">
+                          <Eye className="w-4 h-4" /> View
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Supplier Cancelled Bills Tab */}
+      {currentView === "supplier" && resolvedTab === "cancelled" && (
+        <div className="card p-0 overflow-hidden">
+          {cancelled_purchases.length === 0 ? (
+            <p className="text-center py-10 text-sm" style={{color:'var(--text-3)'}}>No cancelled purchase bills.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{borderBottom:'1px solid var(--border)'}}>
+                    <th className="table-header text-left">Bill Date</th>
+                    <th className="table-header text-left">Bill No.</th>
+                    <th className="table-header text-right">Amount</th>
+                    <th className="table-header text-left">Cancelled Date</th>
+                    <th className="table-header text-left">Reason</th>
+                    <th className="table-header text-center">Status</th>
+                    <th className="table-header text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cancelled_purchases.map(pb => (
+                    <tr key={pb.id} style={{borderBottom:'1px solid var(--border)'}} className="opacity-75 bg-red-50/20">
+                      <td className="table-cell">{format(new Date(pb.purchase_date), "dd MMM yyyy")}</td>
+                      <td className="table-cell font-medium line-through">{pb.bill_no || `#${pb.id}`}</td>
+                      <td className="table-cell text-right font-medium">₹{fmt(pb.grand_total)}</td>
+                      <td className="table-cell text-xs text-gray-500">{pb.cancelled_at ? format(new Date(pb.cancelled_at), "dd MMM yyyy HH:mm") : "-"}</td>
+                      <td className="table-cell text-xs">{pb.cancellation_reason || "Cancelled"}</td>
+                      <td className="table-cell text-center"><span className="badge badge-danger">Cancelled</span></td>
+                      <td className="table-cell text-center">
+                        <button onClick={() => loadPurchaseDetail(pb.id)} className="p-1 rounded text-blue-600 hover:bg-blue-50" title="View Bill">
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Customer Invoices Tab */}
+      {currentView === "customer" && resolvedTab === "invoices" && (
+        <div className="card p-0 overflow-hidden">
+          {invoices.length === 0 ? (
+            <p className="text-center py-10 text-sm" style={{color:'var(--text-3)'}}>No invoices found.</p>
+          ) : (
+            <>
+              {/* Desktop View */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr style={{borderBottom:'1px solid var(--border)'}}>
+                      <th className="table-header text-left">Date</th>
+                      <th className="table-header text-left">Invoice No.</th>
+                      <th className="table-header text-right">Grand Total</th>
+                      <th className="table-header text-right">Paid</th>
+                      <th className="table-header text-right">Returns</th>
+                      <th className="table-header text-right">Balance</th>
+                      <th className="table-header text-center">Status</th>
+                      <th className="table-header text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invoices.map(invoice => {
+                      const balance = Math.max(parseFloat(invoice.balance ?? 0), 0);
+                      return (
+                        <tr key={invoice.id} style={{borderBottom:'1px solid var(--border)'}} className="hover:bg-gray-50/50">
+                          <td className="table-cell">{format(new Date(invoice.invoice_date), "dd MMM yyyy")}</td>
+                          <td className="table-cell font-medium">
+                            <Link to={`/invoices/${invoice.id}`} className="text-blue-600 hover:underline">
+                              {invoice.invoice_no}
+                            </Link>
+                          </td>
+                          <td className="table-cell text-right font-bold">₹{fmt(invoice.grand_total)}</td>
+                          <td className="table-cell text-right text-green-600 font-medium">₹{fmt(invoice.amount_paid)}</td>
+                          <td className="table-cell text-right text-orange-600 font-medium">
+                            {parseFloat(invoice.goods_return_total || 0) > 0 ? "₹" + fmt(invoice.goods_return_total) : "-"}
+                          </td>
+                          <td className="table-cell text-right text-red-600 font-bold">₹{fmt(balance)}</td>
+                          <td className="table-cell text-center"><StatusBadge status={invoice.payment_status} /></td>
+                          <td className="table-cell text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              {balance > 0 && (
+                                <button onClick={() => openCustomerPayModal(invoice)} className="btn-primary text-xs py-1 px-2.5">
+                                  + Pay
+                                </button>
+                              )}
+                              {balance > 0 && (
+                                <button onClick={() => openReturnModal(invoice)} className="btn-secondary text-xs py-1 px-2 text-orange-700">
+                                  Return
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile View */}
+              <div className="md:hidden p-3 space-y-2">
+                {invoices.map(invoice => {
+                  const balance = Math.max(parseFloat(invoice.balance ?? 0), 0);
+                  return (
+                    <div key={invoice.id} className="mobile-card">
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <div>
+                          <Link to={`/invoices/${invoice.id}`} className="font-bold text-sm text-blue-600 hover:underline">
+                            {invoice.invoice_no}
+                          </Link>
+                          <p className="text-xs" style={{color:'var(--text-3)'}}>{format(new Date(invoice.invoice_date), "dd MMM yyyy")}</p>
+                        </div>
+                        <StatusBadge status={invoice.payment_status} />
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 mb-2 text-xs">
+                        <div><span style={{color:'var(--text-3)'}}>Total:</span> <span className="font-bold">₹{fmt(invoice.grand_total)}</span></div>
+                        <div><span style={{color:'var(--text-3)'}}>Paid:</span> <span className="text-green-600 font-semibold">₹{fmt(invoice.amount_paid)}</span></div>
+                        <div><span style={{color:'var(--text-3)'}}>Balance:</span> <span className="text-red-600 font-bold">₹{fmt(balance)}</span></div>
+                      </div>
+                      {balance > 0 && (
+                        <div className="flex gap-2">
+                          <button onClick={() => openCustomerPayModal(invoice)} className="btn-primary text-xs py-1.5 flex-1">
+                            + Pay (₹{fmt(balance)})
+                          </button>
+                          <button onClick={() => openReturnModal(invoice)} className="btn-secondary text-xs py-1.5 px-3 text-orange-700">
+                            Return
                           </button>
                         </div>
                       )}
@@ -432,190 +685,174 @@ export default function PartyLedger() {
         </div>
       )}
 
-      {/* Payments Tab */}
-      {activeTab === "payments" && (
+      {/* Payments Tab (Unified for both Customer & Supplier) */}
+      {resolvedTab === "payments" && (
         <div className="card p-0 overflow-hidden">
-          {!payments || payments.length === 0 ? (
-            <div className="text-center py-10">
-              <IndianRupee className="w-10 h-10 mx-auto mb-3" style={{color:'var(--border)'}} />
-              <p className="text-sm" style={{color:'var(--text-3)'}}>No payments recorded yet.</p>
-              <button onClick={openGeneralPayModal} className="btn-success mt-3 text-sm">
-                + Add First Payment
-              </button>
-            </div>
+          {payments.length === 0 ? (
+            <p className="text-center py-10 text-sm" style={{color:'var(--text-3)'}}>No payments recorded.</p>
           ) : (
             <>
-              {/* Desktop */}
+              {/* Desktop View */}
               <div className="hidden md:block overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full text-sm">
                   <thead>
                     <tr style={{borderBottom:'1px solid var(--border)'}}>
                       <th className="table-header text-left">Date</th>
-                      <th className="table-header text-left">Invoice</th>
                       <th className="table-header text-left">Mode</th>
-                      <th className="table-header text-left">Reference</th>
-                      <th className="table-header text-left">Notes</th>
+                      <th className="table-header text-left">{currentView === "supplier" ? "Purchase Bill / Ref" : "Invoice / Ref"}</th>
                       <th className="table-header text-right">Amount</th>
-                      <th className="table-header text-center">Delete</th>
+                      <th className="table-header text-left">Notes</th>
+                      <th className="table-header text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {payments.map((p) => (
-                      <tr key={p.id}
-                        style={{borderBottom:'1px solid var(--border)'}}
-                        onMouseEnter={e => e.currentTarget.style.backgroundColor='var(--bg-hover)'}
-                        onMouseLeave={e => e.currentTarget.style.backgroundColor='transparent'}>
-                        <td className="table-cell">{format(new Date(p.payment_date), "dd MMM yyyy")}</td>
-                        <td className="table-cell text-blue-600 font-medium">{p.invoice_no || "-"}</td>
+                    {payments.map(payment => (
+                      <tr key={payment.id} style={{borderBottom:'1px solid var(--border)'}} className="hover:bg-gray-50/50">
+                        <td className="table-cell">{format(new Date(payment.payment_date), "dd MMM yyyy")}</td>
                         <td className="table-cell">
-                          <span className={"text-xs px-2 py-0.5 rounded-full font-medium capitalize " + (modeColors[p.payment_mode] || "bg-gray-50 text-gray-700")}>
-                            {p.payment_mode?.replace("_", " ")}
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${modeColors[payment.payment_mode] || "bg-gray-100 text-gray-700"}`}>
+                            {payment.payment_mode ? payment.payment_mode.replace("_", " ") : "cash"}
                           </span>
                         </td>
-                        <td className="table-cell" style={{color:'var(--text-3)'}}>{p.reference_no || "-"}</td>
-                        <td className="table-cell text-xs" style={{color:'var(--text-3)'}}>{p.notes || "-"}</td>
-                        <td className="table-cell text-right font-bold text-green-600 text-base">₹{fmt(p.amount)}</td>
+                        <td className="table-cell">
+                          {payment.bill_no && <span className="text-purple-600 font-medium mr-2">Bill: {payment.bill_no}</span>}
+                          {payment.invoice_no && <span className="text-blue-600 font-medium mr-2">Inv: {payment.invoice_no}</span>}
+                          {payment.reference_no && <span className="text-xs text-gray-500 font-mono">({payment.reference_no})</span>}
+                          {!payment.bill_no && !payment.invoice_no && !payment.reference_no && <span className="text-gray-400">On-Account</span>}
+                        </td>
+                        <td className="table-cell text-right font-bold text-green-600">₹{fmt(payment.amount)}</td>
+                        <td className="table-cell text-xs text-gray-500">{payment.notes || "-"}</td>
                         <td className="table-cell text-center">
-                          <button onClick={() => deletePayment(p.id)} className="text-red-400 hover:text-red-600">
+                          <button onClick={() => deletePayment(payment.id)} className="text-red-400 hover:text-red-600 p-1" title="Delete Payment">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </td>
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot>
-                    <tr style={{backgroundColor:'rgba(34,197,94,0.08)', borderTop:'2px solid rgba(34,197,94,0.3)'}}>
-                      <td colSpan={5} className="table-cell font-bold text-green-700">TOTAL RECEIVED</td>
-                      <td className="table-cell text-right font-bold text-green-600 text-base">
-                        ₹{fmt(payments.reduce((s, p) => s + parseFloat(p.amount || 0), 0))}
-                      </td>
-                      <td></td>
-                    </tr>
-                  </tfoot>
                 </table>
               </div>
 
-              {/* Mobile Cards */}
+              {/* Mobile View */}
               <div className="md:hidden p-3 space-y-2">
-                {payments.map((p) => (
-                  <div key={p.id} className="mobile-card">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <span className={"text-xs px-2 py-0.5 rounded-full font-semibold capitalize " + (modeColors[p.payment_mode] || "bg-gray-50 text-gray-700")}>
-                            {p.payment_mode?.replace("_", " ")}
-                          </span>
-                          {p.invoice_no && <span className="text-xs text-blue-600 font-medium">{p.invoice_no}</span>}
-                        </div>
-                        <p className="text-xs" style={{color:'var(--text-3)'}}>{format(new Date(p.payment_date), "dd MMM yyyy")}</p>
-                        {p.reference_no && <p className="text-xs mt-0.5" style={{color:'var(--text-3)'}}>Ref: {p.reference_no}</p>}
-                        {p.notes && <p className="text-xs mt-0.5" style={{color:'var(--text-3)'}}>{p.notes}</p>}
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="font-bold text-green-600 text-sm">₹{fmt(p.amount)}</span>
-                        <button onClick={() => deletePayment(p.id)} className="text-red-400 hover:text-red-600 p-1">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                {payments.map(payment => (
+                  <div key={payment.id} className="mobile-card">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${modeColors[payment.payment_mode] || "bg-gray-100 text-gray-700"}`}>
+                        {payment.payment_mode ? payment.payment_mode.replace("_", " ") : "cash"}
+                      </span>
+                      <span className="font-bold text-green-600">₹{fmt(payment.amount)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>{format(new Date(payment.payment_date), "dd MMM yyyy")}</span>
+                      <span>
+                        {payment.bill_no ? `Bill: ${payment.bill_no}` : payment.invoice_no ? `Inv: ${payment.invoice_no}` : "On-Account"}
+                      </span>
+                      <button onClick={() => deletePayment(payment.id)} className="text-red-400 hover:text-red-600 p-1">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 ))}
-                <div className="rounded-xl p-3 flex justify-between font-bold"
-                  style={{backgroundColor:'rgba(16,185,129,0.08)', border:'1px solid rgba(16,185,129,0.3)'}}>
-                  <span style={{color:'var(--text)'}}>Total Received</span>
-                  <span className="text-green-600">₹{fmt(payments.reduce((s, p) => s + parseFloat(p.amount || 0), 0))}</span>
-                </div>
               </div>
             </>
           )}
         </div>
       )}
 
-      {/* Returns Tab */}
-      {activeTab === "returns" && (
+      {/* Customer Returns Tab */}
+      {currentView === "customer" && resolvedTab === "returns" && (
         <div className="card p-0 overflow-hidden">
           {returns.length === 0 ? (
-            <div className="text-center py-10">
-              <RotateCcw className="w-10 h-10 mx-auto mb-3" style={{color:'var(--border)'}} />
-              <p className="text-sm" style={{color:'var(--text-3)'}}>No goods return recorded yet.</p>
-              <button onClick={() => openReturnModal()} className="btn-secondary mt-3 text-sm text-orange-700">
-                + Add Goods Return
-              </button>
-            </div>
+            <p className="text-center py-10 text-sm" style={{color:'var(--text-3)'}}>No goods returns recorded.</p>
           ) : (
-            <>
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr style={{borderBottom:'1px solid var(--border)'}}>
-                      <th className="table-header text-left">Date</th>
-                      <th className="table-header text-left">Return No.</th>
-                      <th className="table-header text-left">Invoice</th>
-                      <th className="table-header text-left">Reason</th>
-                      <th className="table-header text-left">Notes</th>
-                      <th className="table-header text-right">Amount</th>
-                      <th className="table-header text-center">Delete</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {returns.map((r) => (
-                      <tr key={r.id} style={{borderBottom:'1px solid var(--border)'}}>
-                        <td className="table-cell">{format(new Date(r.return_date), "dd MMM yyyy")}</td>
-                        <td className="table-cell text-orange-700 font-medium">{r.return_no}</td>
-                        <td className="table-cell text-blue-600 font-medium">{r.invoice_no || "-"}</td>
-                        <td className="table-cell" style={{color:'var(--text-2)'}}>{r.reason || "-"}</td>
-                        <td className="table-cell text-xs" style={{color:'var(--text-3)'}}>{r.notes || "-"}</td>
-                        <td className="table-cell text-right font-bold text-orange-600 text-base">₹{fmt(r.amount)}</td>
-                        <td className="table-cell text-center">
-                          <button onClick={() => deleteReturn(r.id)} className="text-red-400 hover:text-red-600">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr style={{backgroundColor:'rgba(249,115,22,0.08)', borderTop:'2px solid rgba(249,115,22,0.3)'}}>
-                      <td colSpan={5} className="table-cell font-bold text-orange-700">TOTAL GOODS RETURN ADJUSTMENT</td>
-                      <td className="table-cell text-right font-bold text-orange-600 text-base">
-                        ₹{fmt(returns.reduce((s, r) => s + parseFloat(r.amount || 0), 0))}
-                      </td>
-                      <td></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-
-              <div className="md:hidden p-3 space-y-2">
-                {returns.map((r) => (
-                  <div key={r.id} className="mobile-card">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-orange-50 text-orange-700">{r.return_no}</span>
-                          {r.invoice_no && <span className="text-xs text-blue-600 font-medium">{r.invoice_no}</span>}
-                        </div>
-                        <p className="text-xs" style={{color:'var(--text-3)'}}>{format(new Date(r.return_date), "dd MMM yyyy")}</p>
-                        <p className="text-xs mt-0.5" style={{color:'var(--text-2)'}}>{r.reason || "Goods return"}</p>
-                        {r.notes && <p className="text-xs mt-0.5" style={{color:'var(--text-3)'}}>{r.notes}</p>}
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="font-bold text-orange-600 text-sm">₹{fmt(r.amount)}</span>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{borderBottom:'1px solid var(--border)'}}>
+                    <th className="table-header text-left">Date</th>
+                    <th className="table-header text-left">Invoice No.</th>
+                    <th className="table-header text-left">Reason</th>
+                    <th className="table-header text-right">Amount</th>
+                    <th className="table-header text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {returns.map(r => (
+                    <tr key={r.id} style={{borderBottom:'1px solid var(--border)'}}>
+                      <td className="table-cell">{format(new Date(r.return_date), "dd MMM yyyy")}</td>
+                      <td className="table-cell font-medium">{r.invoice_no || "General Adjustment"}</td>
+                      <td className="table-cell text-xs">{r.reason || "Goods return"}</td>
+                      <td className="table-cell text-right font-bold text-orange-600">₹{fmt(r.amount)}</td>
+                      <td className="table-cell text-center">
                         <button onClick={() => deleteReturn(r.id)} className="text-red-400 hover:text-red-600 p-1">
                           <Trash2 className="w-4 h-4" />
                         </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                <div className="rounded-xl p-3 flex justify-between font-bold"
-                  style={{backgroundColor:'rgba(249,115,22,0.08)', border:'1px solid rgba(249,115,22,0.3)'}}>
-                  <span style={{color:'var(--text)'}}>Total Adjustment</span>
-                  <span className="text-orange-600">₹{fmt(returns.reduce((s, r) => s + parseFloat(r.amount || 0), 0))}</span>
-                </div>
-              </div>
-            </>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
+        </div>
+      )}
+
+      {/* Purchase Detail Modal */}
+      {viewingPurchase && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="card w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <h2 className="text-lg font-bold" style={{color:'var(--text)'}}>
+                  Purchase Bill {viewingPurchase.bill_no || `#${viewingPurchase.id}`}
+                  {viewingPurchase.status === 'cancelled' && <span className="badge badge-danger ml-2">Cancelled</span>}
+                </h2>
+                <p className="text-sm" style={{color:'var(--text-3)'}}>
+                  Date: {format(new Date(viewingPurchase.purchase_date), "dd MMM yyyy")} | Supplier: {viewingPurchase.supplier_name || party.name}
+                </p>
+                {viewingPurchase.status === 'cancelled' && viewingPurchase.cancellation_reason && (
+                  <p className="text-xs text-red-600 mt-1">Cancellation Reason: {viewingPurchase.cancellation_reason}</p>
+                )}
+              </div>
+              <button onClick={() => setViewingPurchase(null)} className="p-1 rounded-lg" style={{color:'var(--text-3)'}}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{borderBottom:'1px solid var(--border)'}}>
+                    <th className="table-header text-left">Product</th>
+                    <th className="table-header text-right">Bill Qty</th>
+                    <th className="table-header text-right">Accepted</th>
+                    <th className="table-header text-right">Rate</th>
+                    <th className="table-header text-right">GST %</th>
+                    <th className="table-header text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(viewingPurchase.items || []).map(item => (
+                    <tr key={item.id} style={{borderBottom:'1px solid var(--border)'}}>
+                      <td className="table-cell">{item.product_name || `Product #${item.product_id}`}</td>
+                      <td className="table-cell text-right">{item.qty}</td>
+                      <td className="table-cell text-right font-semibold">{item.accepted_qty}</td>
+                      <td className="table-cell text-right">₹{fmt(item.rate)}</td>
+                      <td className="table-cell text-right">{item.gst_rate}%</td>
+                      <td className="table-cell text-right font-bold">₹{fmt(item.total_amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-4 text-right space-y-1 text-sm" style={{color:'var(--text)'}}>
+              <p>Taxable: ₹{fmt(viewingPurchase.subtotal)} | GST: ₹{fmt(viewingPurchase.total_gst)}</p>
+              <p>Round Off: ₹{fmt(viewingPurchase.round_off)}</p>
+              <p className="text-base font-bold">Grand Total: ₹{fmt(viewingPurchase.grand_total)}</p>
+              <p className="text-green-600 font-semibold">Amount Paid: ₹{fmt(viewingPurchase.amount_paid)}</p>
+              <p className="text-red-600 font-bold">Payable: ₹{fmt(Math.max(parseFloat(viewingPurchase.grand_total || 0) - parseFloat(viewingPurchase.amount_paid || 0), 0))}</p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -638,11 +875,11 @@ export default function PartyLedger() {
               <div className="rounded-xl p-3 text-sm" style={{backgroundColor:'rgba(249,115,22,0.08)', border:'1px solid rgba(249,115,22,0.2)'}}>
                 <div className="flex justify-between">
                   <span style={{color:'var(--text-3)'}}>Current Outstanding</span>
-                  <span className="font-bold text-red-600">₹{fmt(summary.outstanding)}</span>
+                  <span className="font-bold text-red-600">₹{fmt(activeSummary.outstanding)}</span>
                 </div>
                 <div className="flex justify-between mt-1">
                   <span style={{color:'var(--text-3)'}}>Previous Goods Return</span>
-                  <span className="font-bold text-orange-600">₹{fmt(summary.goods_return_total)}</span>
+                  <span className="font-bold text-orange-600">₹{fmt(activeSummary.goods_return_total)}</span>
                 </div>
               </div>
 
@@ -709,14 +946,16 @@ export default function PartyLedger() {
         </div>
       )}
 
-      {/* Payment Modal */}
+      {/* Payment Modal (Supports Customer and Supplier Payments) */}
       {showPayModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+        <div id="party-payment-modal" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
           <div className="rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto"
             style={{backgroundColor:'var(--bg-card)'}}>
             <div className="flex items-center justify-between p-5" style={{borderBottom:'1px solid var(--border)'}}>
               <div>
-                <h2 className="text-lg font-semibold" style={{color:'var(--text)'}}>Record Payment</h2>
+                <h2 className="text-lg font-semibold" style={{color:'var(--text)'}}>
+                  {currentView === "supplier" ? "Record Payment to Supplier" : "Record Payment from Customer"}
+                </h2>
                 <p className="text-sm" style={{color:'var(--text-3)'}}>{party.name}</p>
               </div>
               <button onClick={() => setShowPayModal(false)} style={{color:'var(--text-3)'}}>
@@ -725,46 +964,76 @@ export default function PartyLedger() {
             </div>
 
             <form onSubmit={handlePayment} className="p-5 space-y-4">
-              {/* Outstanding summary */}
+              {/* Balance Summary */}
               <div className="rounded-xl p-3 text-sm" style={{backgroundColor:'rgba(220,38,38,0.08)', border:'1px solid rgba(220,38,38,0.2)'}}>
                 <div className="flex justify-between">
-                  <span style={{color:'var(--text-3)'}}>Total Outstanding</span>
-                  <span className="font-bold text-red-600">₹{fmt(summary.outstanding)}</span>
+                  <span style={{color:'var(--text-3)'}}>
+                    {currentView === "supplier" ? "Total Payable Balance" : "Total Outstanding"}
+                  </span>
+                  <span className="font-bold text-red-600">₹{fmt(activeSummary.outstanding ?? activeSummary.payable)}</span>
                 </div>
               </div>
 
+              {/* Payment Allocation Selection */}
               <div>
                 <label className="label">Payment Against *</label>
-                <select className="input-field" value={payForm.payment_type === "invoice" ? payForm.invoice_id : payForm.payment_type}
-                  onChange={(e) => {
-                    if (e.target.value === "opening" || e.target.value === "general") {
-                      const amount = e.target.value === "opening" && openingDue > 0 ? openingDue.toFixed(2) : "";
-                      setPayForm(p => ({ ...p, payment_type: e.target.value, invoice_id: "", amount }));
-                      return;
-                    }
-                    const inv = invoices.find(i => i.id === parseInt(e.target.value));
-                    const bal = inv ? Math.max(parseFloat(inv.balance ?? 0), 0) : 0;
-                    setPayForm(p => ({ ...p, payment_type: "invoice", invoice_id: e.target.value, amount: bal.toFixed(2) }));
-                  }} required>
-                  <option value="">-- Select Payment Type --</option>
-                  {openingDue > 0 && (
-                    <option value="opening">Opening Balance - Balance: ₹{fmt(openingDue)}</option>
-                  )}
-                  <option value="general">Without Invoice / Manual Payment</option>
-                  {invoices.filter(i => i.payment_status !== "paid").map(inv => {
-                    const bal = Math.max(parseFloat(inv.balance ?? 0), 0);
-                    return (
-                      <option key={inv.id} value={inv.id}>
-                        {inv.invoice_no} - Balance: ₹{fmt(bal)}
-                      </option>
-                    );
-                  })}
-                </select>
+                {currentView === "supplier" ? (
+                  <select className="input-field"
+                    value={payForm.payment_type === "purchase" ? payForm.purchase_id : payForm.payment_type}
+                    onChange={(e) => {
+                      if (e.target.value === "general") {
+                        setPayForm(p => ({ ...p, payment_type: "general", purchase_id: "", invoice_id: "", amount: "" }));
+                        return;
+                      }
+                      const pb = purchases.find(p => p.id === parseInt(e.target.value));
+                      const bal = pb ? Math.max(parseFloat(pb.payable ?? (parseFloat(pb.grand_total || 0) - parseFloat(pb.amount_paid || 0))), 0) : 0;
+                      setPayForm(p => ({ ...p, payment_type: "purchase", purchase_id: e.target.value, invoice_id: "", amount: bal.toFixed(2) }));
+                    }} required>
+                    <option value="">-- Select Payment Allocation --</option>
+                    <option value="general">On-Account / General Payment to Supplier</option>
+                    {purchases.filter(p => p.payment_status !== "paid").map(pb => {
+                      const bal = Math.max(parseFloat(pb.payable ?? (parseFloat(pb.grand_total || 0) - parseFloat(pb.amount_paid || 0))), 0);
+                      return (
+                        <option key={pb.id} value={pb.id}>
+                          Bill: {pb.bill_no || `#${pb.id}`} - Payable: ₹{fmt(bal)} ({format(new Date(pb.purchase_date), "dd/MM/yyyy")})
+                        </option>
+                      );
+                    })}
+                  </select>
+                ) : (
+                  <select className="input-field" value={payForm.payment_type === "invoice" ? payForm.invoice_id : payForm.payment_type}
+                    onChange={(e) => {
+                      if (e.target.value === "opening" || e.target.value === "general") {
+                        const amount = e.target.value === "opening" && openingDue > 0 ? openingDue.toFixed(2) : "";
+                        setPayForm(p => ({ ...p, payment_type: e.target.value, invoice_id: "", purchase_id: "", amount }));
+                        return;
+                      }
+                      const inv = invoices.find(i => i.id === parseInt(e.target.value));
+                      const bal = inv ? Math.max(parseFloat(inv.balance ?? 0), 0) : 0;
+                      setPayForm(p => ({ ...p, payment_type: "invoice", invoice_id: e.target.value, purchase_id: "", amount: bal.toFixed(2) }));
+                    }} required>
+                    <option value="">-- Select Payment Type --</option>
+                    {openingDue > 0 && (
+                      <option value="opening">Opening Balance - Balance: ₹{fmt(openingDue)}</option>
+                    )}
+                    <option value="general">Without Invoice / Manual Payment</option>
+                    {invoices.filter(i => i.payment_status !== "paid").map(inv => {
+                      const bal = Math.max(parseFloat(inv.balance ?? 0), 0);
+                      return (
+                        <option key={inv.id} value={inv.id}>
+                          {inv.invoice_no} - Balance: ₹{fmt(bal)}
+                        </option>
+                      );
+                    })}
+                  </select>
+                )}
               </div>
 
               {/* Amount */}
               <div>
-                <label className="label">Amount Received *</label>
+                <label className="label">
+                  {currentView === "supplier" ? "Amount Paid *" : "Amount Received *"}
+                </label>
                 <div className="relative">
                   <span className="input-prefix absolute left-3 top-1/2 -translate-y-1/2 font-medium" style={{color:'var(--text-3)'}}>₹</span>
                   <input type="number" className="input-field input-with-currency" value={payForm.amount}
@@ -780,7 +1049,7 @@ export default function PartyLedger() {
                     onChange={(e) => setPayForm(p => ({ ...p, payment_date: e.target.value }))} required />
                 </div>
                 <div>
-                  <label className="label">Mode</label>
+                  <label className="label">Payment Mode</label>
                   <select className="input-field" value={payForm.payment_mode}
                     onChange={(e) => setPayForm(p => ({ ...p, payment_mode: e.target.value }))}>
                     <option value="cash">Cash</option>
@@ -810,7 +1079,7 @@ export default function PartyLedger() {
                 <button type="button" onClick={() => setShowPayModal(false)} className="btn-secondary flex-1">Cancel</button>
                 <button type="submit" disabled={paying} className="btn-success flex-1 flex items-center justify-center gap-2">
                   <IndianRupee className="w-4 h-4" />
-                  {paying ? "Saving..." : "Record Payment"}
+                  {paying ? "Saving..." : (currentView === "supplier" ? "Record Supplier Payment" : "Record Payment")}
                 </button>
               </div>
             </form>
