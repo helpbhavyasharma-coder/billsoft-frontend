@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -7,9 +7,11 @@ import {
   Sparkles, Bot, Send, Check, AlertCircle, ThumbsUp, ThumbsDown,
   BookOpen, Plus, Trash2, HelpCircle, RefreshCw, X, ChevronRight,
   Package, Users, AlertTriangle, Layers, Save, CheckCircle2, Info,
-  FileText, Calendar, ArrowRight, Lock, ShieldCheck
+  FileText, Calendar, ArrowRight, Lock, ShieldCheck, Eye, MapPin, Phone
 } from 'lucide-react';
 import { PageHeader, Panel, Button, Money, StatusBadge, LoadingState, EmptyState } from '../components/ui';
+import { INDIAN_STATES } from '../data/states';
+import { isValidGstinOrNA, normalizeGstin } from '../utils/gstin';
 
 
 function normalizePackSize(raw) {
@@ -73,8 +75,12 @@ export default function AiTraining() {
 
   // Quick Create Customer Modal
   const [showPartyModal, setShowPartyModal] = useState(false);
-  const [partyForm, setPartyForm] = useState({ name: '', city: '', mobile: '', gst_no: 'NA' });
+  const [partyForm, setPartyForm] = useState({
+    name: '', address: '', city: '', state: '', mobile: '',
+    email: '', gst_no: 'NA', party_type: 'customer', opening_balance: '',
+  });
   const [savingParty, setSavingParty] = useState(false);
+  const [lastCreatedInvoice, setLastCreatedInvoice] = useState(null);
 
   // Quick Create Product Modal
   const [showProductModal, setShowProductModal] = useState(false);
@@ -368,22 +374,52 @@ export default function AiTraining() {
       toast.error('Customer name is required.');
       return;
     }
+    if (!isValidGstinOrNA(partyForm.gst_no)) {
+      toast.error('Enter a valid GSTIN or NA.');
+      return;
+    }
     setSavingParty(true);
     try {
-      const res = await api.post('/parties', {
+      const payload = {
         name: partyForm.name.trim(),
-        city: partyForm.city.trim(),
-        mobile: partyForm.mobile.trim(),
-        gst_no: partyForm.gst_no.trim() || 'NA',
-        party_type: 'customer',
-      });
+        address: (partyForm.address || '').trim(),
+        city: (partyForm.city || '').trim(),
+        state: partyForm.state || '',
+        mobile: (partyForm.mobile || '').trim(),
+        email: (partyForm.email || '').trim(),
+        gst_no: normalizeGstin(partyForm.gst_no) || 'NA',
+        party_type: partyForm.party_type || 'customer',
+        opening_balance: partyForm.opening_balance ? parseFloat(partyForm.opening_balance) : '',
+      };
+      const res = await api.post('/parties', payload);
       if (res.data.success && res.data.party) {
         const newParty = res.data.party;
-        toast.success(`Customer "${newParty.name}" created!`);
+        toast.success(`Customer "${newParty.name}" created and selected!`);
         setAllParties((prev) => [...prev, newParty].sort((a, b) => a.name.localeCompare(b.name)));
         setSelectedPartyId(String(newParty.id));
+        setSavePartyAlias(true);
+        setPartyAliasText(extraction?.party?.raw_name || newParty.name);
+
+        if (extraction && extraction.party) {
+          setExtraction((prev) => ({
+            ...prev,
+            party: {
+              ...prev.party,
+              party_id: newParty.id,
+              matched_name: newParty.name,
+              is_ambiguous: false,
+              requires_confirmation: false,
+              match_type: 'exact_catalog',
+            },
+            global_warnings: (prev.global_warnings || []).filter((w) => !/party|customer/i.test(w)),
+          }));
+        }
+
         setShowPartyModal(false);
-        setPartyForm({ name: '', city: '', mobile: '', gst_no: 'NA' });
+        setPartyForm({
+          name: '', address: '', city: '', state: '', mobile: '',
+          email: '', gst_no: 'NA', party_type: 'customer', opening_balance: '',
+        });
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to create customer.');
@@ -742,7 +778,7 @@ export default function AiTraining() {
     setShowInvoiceModal(true);
   };
 
-  const handleCreateFinalInvoice = async () => {
+  const handleCreateFinalInvoice = async (stayOnPage = false) => {
     if (creatingInvoice) return; // double-click guard
     if (!selectedPartyId) {
       toast.error('Customer is required.');
@@ -788,14 +824,20 @@ export default function AiTraining() {
 
       if (data && data.success) {
         toast.dismiss(toastId);
-        if (data.is_duplicate) {
-          toast(`Invoice ${data.invoice.invoice_no} already created (idempotent replay).`, { icon: 'ℹ️' });
-        } else {
-          toast.success(`Invoice ${data.invoice.invoice_no} created successfully!`);
-        }
         try { sessionStorage.removeItem('billsoft_ai_training_draft'); } catch (e) {}
         setShowInvoiceModal(false);
-        navigate(`/invoices/${data.invoice.id}`);
+
+        if (stayOnPage) {
+          toast.success(`Invoice ${data.invoice.invoice_no} created! Ready for next order.`, { duration: 5000 });
+          setLastCreatedInvoice({ id: data.invoice.id, invoice_no: data.invoice.invoice_no });
+          setRawMessage('');
+          setExtraction(null);
+          setSelectedPartyId('');
+          setEditableItems([]);
+        } else {
+          toast.success(`Invoice ${data.invoice.invoice_no} created successfully!`);
+          navigate(`/invoices/${data.invoice.id}`);
+        }
       } else {
         toast.dismiss(toastId);
         toast.error(data?.message || 'Failed to create invoice.');
@@ -883,6 +925,39 @@ export default function AiTraining() {
       {/* ─────────────────────────── TAB 1: ORDER MESSAGE ─────────────────────────── */}
       {activeTab === 'order' && (
         <div className="space-y-6">
+          {/* Recent Created Invoice Banner */}
+          {lastCreatedInvoice && (
+            <div className="p-4 rounded-xl border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 flex flex-wrap items-center justify-between gap-3 shadow-sm animate-fade-in">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <div>
+                  <p className="text-xs sm:text-sm font-bold text-emerald-950 dark:text-emerald-100">
+                    Invoice #{lastCreatedInvoice.invoice_no} created successfully!
+                  </p>
+                  <p className="text-[11px] sm:text-xs text-muted">
+                    Stock movements & ledger entries posted. You can now paste your next customer order below.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link
+                  to={`/invoices/${lastCreatedInvoice.id}`}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 shadow-sm"
+                >
+                  <Eye className="w-3.5 h-3.5" /> View Invoice #{lastCreatedInvoice.invoice_no}
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setLastCreatedInvoice(null)}
+                  className="p-1 rounded text-muted hover:text-foreground"
+                  title="Dismiss banner"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Section A: Input Box */}
           <Panel className="p-5 border" style={{ borderColor: 'var(--border)' }}>
             <div className="space-y-4">
@@ -1038,6 +1113,7 @@ export default function AiTraining() {
                       <div className="flex flex-wrap gap-2">
                         {extraction.party.candidates.map((c) => {
                           const isSelected = String(selectedPartyId) === String(c.id);
+                          const candidateLoc = [c.address, c.city].filter(Boolean).join(', ');
                           return (
                             <button
                               key={c.id}
@@ -1046,15 +1122,19 @@ export default function AiTraining() {
                                 setSelectedPartyId(String(c.id));
                                 setSavePartyAlias(false); // Do not auto-save fuzzy match as alias without explicit operator opt-in
                               }}
-                              className={`text-xs px-2.5 py-1 rounded-md border font-medium flex items-center gap-1.5 transition-all ${
+                              className={`text-xs px-2.5 py-1.5 rounded-md border font-medium flex items-center gap-1.5 transition-all text-left ${
                                 isSelected
                                   ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
                                   : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-300 dark:border-gray-700 hover:border-blue-400'
                               }`}
                             >
-                              <span>{c.name}</span>
-                              {c.city && <span className="opacity-75 text-[10px]">({c.city})</span>}
-                              {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+                              <span className="font-semibold">{c.name}</span>
+                              {candidateLoc && (
+                                <span className={`text-[10px] ${isSelected ? 'text-blue-100' : 'text-muted'}`}>
+                                  ({candidateLoc})
+                                </span>
+                              )}
+                              {isSelected && <Check className="w-3.5 h-3.5 text-white ml-auto" />}
                             </button>
                           );
                         })}
@@ -1070,12 +1150,6 @@ export default function AiTraining() {
                         <label className="text-xs font-medium" style={{ color: 'var(--text-3)' }}>
                           Select / Verify Customer in Catalog:
                         </label>
-                        {selectedParty && (
-                          <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                            <Check className="w-3 h-3" />
-                            Active: {selectedParty.name} {selectedParty.city ? `(${selectedParty.city})` : ''}
-                          </span>
-                        )}
                       </div>
                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 min-w-0">
                         <div className="flex-1 min-w-0">
@@ -1085,7 +1159,7 @@ export default function AiTraining() {
                               setSelectedPartyId(e.target.value);
                               setSavePartyAlias(false);
                             }}
-                            className="w-full p-2 rounded-lg border text-xs focus:ring-1 focus:ring-blue-500 truncate"
+                            className="w-full p-2 rounded-lg border text-xs focus:ring-1 focus:ring-blue-500 truncate font-medium"
                             style={{
                               backgroundColor: 'var(--bg-input)',
                               borderColor: !selectedPartyId ? '#f59e0b' : 'var(--border)',
@@ -1093,11 +1167,14 @@ export default function AiTraining() {
                             }}
                           >
                             <option value="">-- Select or verify customer from catalog --</option>
-                            {allParties.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.name} {p.city ? `(${p.city})` : ''} {p.mobile ? `• ${p.mobile}` : ''}
-                              </option>
-                            ))}
+                            {allParties.map((p) => {
+                              const loc = [p.address, p.city].filter(Boolean).join(', ');
+                              return (
+                                <option key={p.id} value={p.id}>
+                                  {p.name}{loc ? ` — ${loc}` : ''}{p.mobile ? ` • ${p.mobile}` : ''}
+                                </option>
+                              );
+                            })}
                           </select>
                         </div>
                         <Button
@@ -1106,19 +1183,59 @@ export default function AiTraining() {
                           onClick={() => {
                             setPartyForm({
                               name: extraction.party?.raw_name || partyAliasText || '',
+                              address: '',
                               city: extraction.party?.raw_location || '',
+                              state: company?.state || '',
                               mobile: '',
+                              email: '',
                               gst_no: 'NA',
+                              party_type: 'customer',
+                              opening_balance: '',
                             });
                             setShowPartyModal(true);
                           }}
-                          className="text-xs px-3 py-2 shrink-0 sm:w-auto w-full flex items-center justify-center gap-1.5 whitespace-nowrap shadow-sm hover:border-blue-400"
-                          title="Add new customer to catalog"
+                          className="text-xs px-3.5 py-2 shrink-0 sm:w-auto w-full flex items-center justify-center gap-1.5 whitespace-nowrap shadow-sm hover:border-blue-400 font-semibold"
+                          title="Add new customer with full address and details"
                         >
                           <Plus className="w-3.5 h-3.5 text-blue-500" />
                           <span>+ New Customer</span>
                         </Button>
                       </div>
+
+                      {/* Selected Party Summary Bar with Address & City */}
+                      {selectedParty && (
+                        <div className="mt-2 p-2.5 rounded-lg bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-xs flex flex-wrap items-center justify-between gap-2 shadow-xs">
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <span className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              {selectedParty.name}
+                            </span>
+                            {selectedParty.address && (
+                              <span className="text-[11px] text-muted flex items-center gap-1">
+                                <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
+                                {selectedParty.address}{selectedParty.city ? `, ${selectedParty.city}` : ''}
+                              </span>
+                            )}
+                            {!selectedParty.address && selectedParty.city && (
+                              <span className="text-[11px] text-muted flex items-center gap-1">
+                                <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
+                                {selectedParty.city}
+                              </span>
+                            )}
+                            {selectedParty.mobile && (
+                              <span className="text-[11px] text-muted flex items-center gap-1">
+                                <Phone className="w-3 h-3 text-emerald-600 shrink-0" />
+                                {selectedParty.mobile}
+                              </span>
+                            )}
+                          </div>
+                          {selectedParty.gst_no && selectedParty.gst_no !== 'NA' && (
+                            <span className="text-[10px] font-mono bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.5 rounded text-emerald-800 dark:text-emerald-300 font-semibold">
+                              GST: {selectedParty.gst_no}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Area 2: Dedicated Tenant-Scoped Alias Learning Card */}
@@ -2360,80 +2477,160 @@ export default function AiTraining() {
         </div>
       )}
 
-      {/* ─────────────────────────── QUICK CREATE CUSTOMER MODAL ─────────────────────────── */}
+      {/* ─────────────────────────── FULL CREATE CUSTOMER MODAL (SAME AS PARTIES TAB) ─────────────────────────── */}
       {showPartyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl p-4 sm:p-6 border shadow-2xl" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)' }}>
-            <div className="flex items-center justify-between pb-3 border-b mb-4" style={{ borderColor: 'var(--border)' }}>
-              <h3 className="font-bold text-sm flex items-center gap-2" style={{ color: 'var(--text)' }}>
-                <Users className="w-4 h-4 text-emerald-500" />
+        <div className="modal-overlay">
+          <div className="modal-box max-w-lg">
+            <div className="flex items-center justify-between p-5 sm:p-6" style={{ borderBottom: '1px solid var(--border)' }}>
+              <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2" style={{ color: 'var(--text)' }}>
+                <Users className="w-5 h-5 text-emerald-500" />
                 Add New Customer / Party
-              </h3>
-              <button onClick={() => setShowPartyModal(false)} className="text-muted hover:text-foreground">
-                <X className="w-4 h-4" />
+              </h2>
+              <button onClick={() => setShowPartyModal(false)} style={{ color: 'var(--text-3)' }}>
+                <X className="w-5 h-5" />
               </button>
             </div>
-
-            <form onSubmit={handleCreateQuickParty} className="space-y-4 text-xs">
+            <form onSubmit={handleCreateQuickParty} className="p-5 sm:p-6 space-y-4 text-xs sm:text-sm">
               <div>
-                <label className="font-medium mb-1 block" style={{ color: 'var(--text-3)' }}>
-                  Customer / Business Name: *
-                </label>
+                <label className="label">Customer / Party Name *</label>
                 <input
-                  type="text"
-                  required
+                  className="input-field"
                   value={partyForm.name}
-                  onChange={(e) => setPartyForm({ ...partyForm, name: e.target.value })}
-                  placeholder="e.g. Hari Om Kirana Store"
-                  className="w-full p-2 rounded-lg border font-medium"
-                  style={{ backgroundColor: 'var(--bg-input)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                  onChange={(e) => setPartyForm((p) => ({ ...p, name: e.target.value }))}
+                  placeholder="e.g. Pareek Kirana Store"
+                  required
+                  autoFocus
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="font-medium mb-1 block" style={{ color: 'var(--text-3)' }}>City / Station:</label>
+                  <label className="label">Mobile</label>
                   <input
-                    type="text"
-                    value={partyForm.city}
-                    onChange={(e) => setPartyForm({ ...partyForm, city: e.target.value })}
-                    placeholder="e.g. Ramsinghpur"
-                    className="w-full p-2 rounded-lg border"
-                    style={{ backgroundColor: 'var(--bg-input)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                    className="input-field"
+                    value={partyForm.mobile}
+                    onChange={(e) => setPartyForm((p) => ({ ...p, mobile: e.target.value }))}
+                    placeholder="9610623427"
                   />
                 </div>
                 <div>
-                  <label className="font-medium mb-1 block" style={{ color: 'var(--text-3)' }}>Mobile Number:</label>
+                  <label className="label">Email</label>
                   <input
-                    type="text"
-                    value={partyForm.mobile}
-                    onChange={(e) => setPartyForm({ ...partyForm, mobile: e.target.value })}
-                    placeholder="e.g. 9876543210"
-                    className="w-full p-2 rounded-lg border"
-                    style={{ backgroundColor: 'var(--bg-input)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                    type="email"
+                    className="input-field"
+                    value={partyForm.email}
+                    onChange={(e) => setPartyForm((p) => ({ ...p, email: e.target.value }))}
+                    placeholder="party@email.com"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="font-medium mb-1 block" style={{ color: 'var(--text-3)' }}>GST Number (Optional, default NA):</label>
+                <label className="label">Address (गली / मोहल्ला / दुकान नं.)</label>
                 <input
-                  type="text"
-                  value={partyForm.gst_no}
-                  onChange={(e) => setPartyForm({ ...partyForm, gst_no: e.target.value.toUpperCase() })}
-                  placeholder="NA or 15-digit GSTIN"
-                  className="w-full p-2 rounded-lg border uppercase"
-                  style={{ backgroundColor: 'var(--bg-input)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                  className="input-field"
+                  value={partyForm.address}
+                  onChange={(e) => setPartyForm((p) => ({ ...p, address: e.target.value }))}
+                  placeholder="e.g. Main Bazaar, Near Old Bus Stand"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
-                <Button variant="secondary" type="button" onClick={() => setShowPartyModal(false)} disabled={savingParty}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="label">City / Station</label>
+                  <input
+                    className="input-field"
+                    value={partyForm.city}
+                    onChange={(e) => setPartyForm((p) => ({ ...p, city: e.target.value }))}
+                    placeholder="Sri Vijaynagar"
+                  />
+                </div>
+                <div>
+                  <label className="label">State</label>
+                  <select
+                    className="input-field"
+                    value={partyForm.state}
+                    onChange={(e) => setPartyForm((p) => ({ ...p, state: e.target.value }))}
+                  >
+                    <option value="">-- Select State --</option>
+                    {INDIAN_STATES.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="label">GST Number</label>
+                  <input
+                    className="input-field uppercase"
+                    value={partyForm.gst_no}
+                    onChange={(e) => setPartyForm((p) => ({ ...p, gst_no: e.target.value.toUpperCase() }))}
+                    placeholder="NA"
+                  />
+                </div>
+                <div>
+                  <label className="label">Party Type</label>
+                  <select
+                    className="input-field"
+                    value={partyForm.party_type}
+                    onChange={(e) => setPartyForm((p) => ({ ...p, party_type: e.target.value }))}
+                  >
+                    <option value="customer">Customer</option>
+                    <option value="supplier">Supplier</option>
+                    <option value="both">Both</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Opening Balance */}
+              <div
+                className="rounded-xl p-3.5 space-y-2 border"
+                style={{ backgroundColor: 'var(--bg-nav)', borderColor: 'var(--border)' }}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-xs sm:text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                    Opening Balance (पिछला बकाया)
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted">
+                  Purana bacha hua balance add karein. Yeh party ledger aur outstanding me automatic dikhega.
+                </p>
+                <div className="relative">
+                  <span className="input-prefix absolute left-3 top-1/2 -translate-y-1/2 font-medium text-xs text-muted">
+                    ₹
+                  </span>
+                  <input
+                    type="number"
+                    className="input-field input-with-currency font-semibold"
+                    value={partyForm.opening_balance}
+                    onChange={(e) => setPartyForm((p) => ({ ...p, opening_balance: e.target.value }))}
+                    placeholder="0.00"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPartyModal(false)}
+                  disabled={savingParty}
+                  className="btn-secondary flex-1 text-xs sm:text-sm py-2.5"
+                >
                   Cancel
-                </Button>
-                <Button variant="primary" type="submit" disabled={savingParty}>
-                  {savingParty ? 'Creating...' : 'Create Customer'}
-                </Button>
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingParty}
+                  className="btn-primary flex-1 text-xs sm:text-sm py-2.5 flex items-center justify-center gap-2"
+                >
+                  {savingParty ? 'Saving...' : 'Add & Select Customer'}
+                </button>
               </div>
             </form>
           </div>
@@ -2933,26 +3130,37 @@ export default function AiTraining() {
               >
                 Cancel / Edit Order
               </Button>
-              <Button
-                variant="primary"
-                type="button"
-                onClick={handleCreateFinalInvoice}
-                disabled={creatingInvoice}
-                className="text-xs px-5 py-2.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center justify-center gap-2 shadow-lg w-full sm:w-auto"
-              >
-                {creatingInvoice ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    Posting Invoice & Deducting Stock...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" />
-                    Create & Open Invoice
-                    <ArrowRight className="w-3.5 h-3.5 ml-1" />
-                  </>
-                )}
-              </Button>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <Button
+                  variant="secondary"
+                  type="button"
+                  onClick={() => handleCreateFinalInvoice(false)}
+                  disabled={creatingInvoice}
+                  className="text-xs px-3.5 py-2.5 sm:py-2 justify-center w-full sm:w-auto font-medium"
+                >
+                  Create & View Invoice
+                  <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                </Button>
+                <Button
+                  variant="primary"
+                  type="button"
+                  onClick={() => handleCreateFinalInvoice(true)}
+                  disabled={creatingInvoice}
+                  className="text-xs px-5 py-2.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center justify-center gap-2 shadow-lg w-full sm:w-auto"
+                >
+                  {creatingInvoice ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      Posting & Deducting Stock...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4" />
+                      Create & Next Order (Stay Here)
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </div>

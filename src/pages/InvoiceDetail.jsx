@@ -1,8 +1,8 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
-import { Edit, FileDown, ArrowLeft, Plus, Trash2, X, Printer, Share2, RotateCcw } from 'lucide-react';
+import { Edit, FileDown, ArrowLeft, Plus, Trash2, X, Printer, Share2, RotateCcw, Sparkles } from 'lucide-react';
 import { format } from 'date-fns';
 import { downloadInvoicePdf, shareInvoicePdf } from '../utils/invoicePdf';
 import { useAuth } from '../context/AuthContext';
@@ -112,19 +112,60 @@ export default function InvoiceDetail() {
     }
   };
 
+  const generateIdempotencyKey = () => `pay_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+  const openPayModalWithAmount = (amount = '') => {
+    setPayForm({
+      amount: amount !== '' ? String(amount) : '',
+      payment_date: format(new Date(), 'yyyy-MM-dd'),
+      payment_mode: 'cash',
+      reference_no: '',
+      notes: '',
+      idempotency_key: generateIdempotencyKey(),
+    });
+    setPaying(false);
+    setShowPayModal(true);
+  };
+
   const handlePayment = async (e) => {
     e.preventDefault();
+    if (paying) return;
     if (!payForm.amount || parseFloat(payForm.amount) <= 0) {
       toast.error('Enter valid amount.'); return;
     }
     setPaying(true);
+
+    // Reuse the exact same idempotency key for retries of this modal session
+    const currentKey = payForm.idempotency_key || generateIdempotencyKey();
+    if (!payForm.idempotency_key) {
+      setPayForm(p => ({ ...p, idempotency_key: currentKey }));
+    }
+
     try {
-      const { data } = await api.post('/payments', { invoice_id: parseInt(id), ...payForm });
+      const { data } = await api.post('/payments', {
+        invoice_id: parseInt(id),
+        ...payForm,
+        idempotency_key: currentKey,
+      });
       if (data.success) {
-        toast.success('Payment recorded!');
+        toast.success(data.is_idempotent_replay ? 'Payment already recorded (replayed).' : 'Payment recorded!');
         setShowPayModal(false);
-        setPayForm({ amount: '', payment_date: format(new Date(), 'yyyy-MM-dd'), payment_mode: 'cash', reference_no: '', notes: '' });
-        fetchAll();
+        setPayForm({
+          amount: '',
+          payment_date: format(new Date(), 'yyyy-MM-dd'),
+          payment_mode: 'cash',
+          reference_no: '',
+          notes: '',
+          idempotency_key: '',
+        });
+
+        // Separate post-commit refresh error from payment creation error
+        try {
+          await fetchAll();
+        } catch (refreshErr) {
+          console.error('Invoice display refresh failed after successful payment:', refreshErr);
+          toast.warning('Payment recorded successfully, but invoice display failed to refresh. Please refresh page.');
+        }
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to record payment.');
@@ -231,8 +272,11 @@ export default function InvoiceDetail() {
           <StatusBadge status={invoice.payment_status} />
         </div>
         <div className="flex gap-2 flex-wrap">
+          <Link to="/ai/training" className="btn-secondary flex items-center gap-1.5 text-sm bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800 font-medium">
+            <Sparkles className="w-4 h-4 text-blue-500" /> New AI Invoice
+          </Link>
           {invoice.payment_status !== 'paid' && (
-            <button onClick={() => { setPayForm(p => ({ ...p, amount: outstanding.toFixed(2) })); setShowPayModal(true); }}
+            <button onClick={() => openPayModalWithAmount(outstanding.toFixed(2))}
               className="btn-success flex items-center gap-1.5 text-sm">
               <Plus className="w-4 h-4" /> Add Payment
             </button>
@@ -269,7 +313,7 @@ export default function InvoiceDetail() {
               {returnedTotal > 0 && <div><span style={{color:'var(--text-3)'}}>Goods Return: </span><span className="font-bold text-orange-600">₹{fmt(returnedTotal)}</span></div>}
               <div><span style={{color:'var(--text-3)'}}>Outstanding: </span><span className="font-bold text-red-600">₹{fmt(outstanding)}</span></div>
             </div>
-            <button onClick={() => { setPayForm(p => ({ ...p, amount: outstanding.toFixed(2) })); setShowPayModal(true); }}
+            <button onClick={() => openPayModalWithAmount(outstanding.toFixed(2))}
               className="btn-primary text-sm py-1.5">
               Record Payment
             </button>
@@ -440,7 +484,7 @@ export default function InvoiceDetail() {
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold" style={{color:'var(--text)'}}>Payment History</h2>
           {invoice.payment_status !== 'paid' && (
-            <button onClick={() => setShowPayModal(true)} className="btn-primary text-xs py-1.5 flex items-center gap-1">
+            <button onClick={() => openPayModalWithAmount(outstanding > 0 ? outstanding.toFixed(2) : '')} className="btn-primary text-xs py-1.5 flex items-center gap-1">
               <Plus className="w-3.5 h-3.5" /> Add Payment
             </button>
           )}
@@ -586,7 +630,7 @@ export default function InvoiceDetail() {
 
       {/* Payment Modal */}
       {showPayModal && (
-        <div className="modal-overlay">
+        <div id="invoice-payment-modal" className="modal-overlay">
           <div className="modal-box">
             <div className="flex items-center justify-between p-5" style={{borderBottom:'1px solid var(--border)'}}>
               <h2 className="text-lg font-semibold" style={{color:'var(--text)'}}>Record Payment</h2>
