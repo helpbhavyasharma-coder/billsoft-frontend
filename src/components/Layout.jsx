@@ -5,11 +5,12 @@ import { useTheme } from '../context/ThemeContext';
 import {
   LayoutDashboard, FileText, Users, Package, Settings,
   LogOut, Menu, X, Building2, Plus, AlertCircle, Sun, Moon,
-  BarChart2, ShieldCheck, ShoppingCart, Wallet
+  BarChart2, ShieldCheck, ShoppingCart, Wallet, Sparkles
 } from 'lucide-react';
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/ai/training', label: 'Invoice with AI', icon: Sparkles },
   { path: '/invoices', label: 'Invoices', icon: FileText },
   { path: '/outstanding', label: 'Outstanding', icon: AlertCircle },
   { path: '/parties', label: 'Parties', icon: Users },

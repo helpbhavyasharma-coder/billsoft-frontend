@@ -11,28 +11,6 @@ import {
 } from 'lucide-react';
 import { PageHeader, Panel, Button, Money, StatusBadge, LoadingState, EmptyState } from '../components/ui';
 
-const SAMPLE_ORDERS = [
-  {
-    label: 'Sharma Store Standard (Hinglish)',
-    text: 'Sharma store ke liye haldi 100g 20 packet, mirchi 200g 10 packet aur garam masala 50g 5 packet ka bill bana do.',
-  },
-  {
-    label: 'Gupta Ji Cartons & Peti',
-    text: 'Gupta ji kirana: 5 peti haldi 500g, 2 carton garam masala 100g jaldi bhejo.',
-  },
-  {
-    label: 'Missing Quantity Edge Case',
-    text: 'Sharma store ko chhole masala aur pav bhaji masala bhej do, rate purana lagana.',
-  },
-  {
-    label: 'Ambiguous Party (Multiple Sharma)',
-    text: 'Sharma ji ko 10 packet mirch powder 200g aur 5 packet dhaniya 100g bhej do.',
-  },
-  {
-    label: 'Uncatalogued Item Alert',
-    text: 'Gupta general store ko 10 packet haldi 100g aur 5 packet Maggie Masala de dena.',
-  },
-];
 
 function normalizePackSize(raw) {
   if (!raw) return null;
@@ -62,7 +40,8 @@ function normalizePackSize(raw) {
 }
 
 export default function AiTraining() {
-  const [activeTab, setActiveTab] = useState('trainer'); // 'trainer' | 'aliases' | 'history'
+  const [activeTab, setActiveTab] = useState('order'); // 'order' | 'other'
+  const [otherSubTab, setOtherSubTab] = useState('aliases'); // 'aliases' | 'history'
   const [rawMessage, setRawMessage] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [extraction, setExtraction] = useState(null);
@@ -879,55 +858,38 @@ export default function AiTraining() {
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
       {/* ── Top Header ── */}
       <PageHeader
-        title="BillSoft AI — Training Studio"
-        subtitle="Intelligent order parser & memory trainer for Bhavyarsh Masale"
-        meta={
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
-              <Bot className="w-3.5 h-3.5" /> Model: gemini-3.5-flash-lite
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Sandbox Training Mode (Zero Financial Writes)
-            </span>
-          </div>
-        }
+        title="Invoice with AI"
+        subtitle="Create official invoices instantly from WhatsApp or customer order messages"
         actions={
           <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
             <Button
-              variant={activeTab === 'trainer' ? 'primary' : 'secondary'}
-              onClick={() => setActiveTab('trainer')}
-              className="text-xs px-2.5 sm:px-3 py-1.5 flex-1 sm:flex-none justify-center whitespace-nowrap"
+              variant={activeTab === 'order' ? 'primary' : 'secondary'}
+              onClick={() => setActiveTab('order')}
+              className="text-xs px-3 sm:px-4 py-1.5 flex-1 sm:flex-none justify-center whitespace-nowrap"
             >
-              <Sparkles className="w-3.5 h-3.5 mr-1" /> Order Trainer
+              <Sparkles className="w-3.5 h-3.5 mr-1" /> Order Message
             </Button>
             <Button
-              variant={activeTab === 'aliases' ? 'primary' : 'secondary'}
-              onClick={() => setActiveTab('aliases')}
-              className="text-xs px-2.5 sm:px-3 py-1.5 flex-1 sm:flex-none justify-center whitespace-nowrap"
+              variant={activeTab === 'other' ? 'primary' : 'secondary'}
+              onClick={() => setActiveTab('other')}
+              className="text-xs px-3 sm:px-4 py-1.5 flex-1 sm:flex-none justify-center whitespace-nowrap"
             >
-              <BookOpen className="w-3.5 h-3.5 mr-1" /> Aliases ({aliases.product_aliases.length + aliases.party_aliases.length})
-            </Button>
-            <Button
-              variant={activeTab === 'history' ? 'primary' : 'secondary'}
-              onClick={() => setActiveTab('history')}
-              className="text-xs px-2.5 sm:px-3 py-1.5 flex-1 sm:flex-none justify-center whitespace-nowrap"
-            >
-              <Layers className="w-3.5 h-3.5 mr-1" /> Examples ({trainingExamples.length})
+              <BookOpen className="w-3.5 h-3.5 mr-1" /> Other ({aliases.product_aliases.length + aliases.party_aliases.length + trainingExamples.length})
             </Button>
           </div>
         }
       />
 
-      {/* ─────────────────────────── TAB 1: ORDER TRAINER ─────────────────────────── */}
-      {activeTab === 'trainer' && (
+      {/* ─────────────────────────── TAB 1: ORDER MESSAGE ─────────────────────────── */}
+      {activeTab === 'order' && (
         <div className="space-y-6">
-          {/* Section A: Input Box & Sample Pills */}
+          {/* Section A: Input Box */}
           <Panel className="p-5 border" style={{ borderColor: 'var(--border)' }}>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text)' }}>
                   <Sparkles className="w-4 h-4 text-blue-500" />
-                  Paste WhatsApp / Hinglish Order Message:
+                  Paste WhatsApp / Order Message:
                 </label>
                 <span className="text-xs text-muted" style={{ color: 'var(--text-3)' }}>
                   {rawMessage.length} / 4000 chars
@@ -937,7 +899,7 @@ export default function AiTraining() {
               <textarea
                 value={rawMessage}
                 onChange={(e) => setRawMessage(e.target.value)}
-                placeholder="Paste message e.g.: Sharma store ke liye haldi 100g 20 packet, mirchi 200g 10 packet aur garam masala 50g 5 packet ka bill bana do."
+                placeholder="Paste customer order message here e.g.: Sharma store ke liye haldi 100g 20 packet, mirchi 200g 10 packet aur garam masala 50g 5 packet ka bill bana do."
                 rows={4}
                 className="w-full p-3 rounded-xl border text-sm font-sans focus:outline-none focus:ring-2 focus:ring-blue-500"
                 style={{
@@ -946,30 +908,6 @@ export default function AiTraining() {
                   color: 'var(--text)',
                 }}
               />
-
-              {/* Quick Sample Buttons */}
-              <div>
-                <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-3)' }}>
-                  Try quick test cases for Bhavyarsh Masale:
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {SAMPLE_ORDERS.map((sample, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setRawMessage(sample.text)}
-                      className="text-xs px-2.5 py-1.5 rounded-lg border transition hover:border-blue-400 text-left"
-                      style={{
-                        backgroundColor: 'var(--bg-nav)',
-                        borderColor: 'var(--border)',
-                        color: 'var(--text)',
-                      }}
-                    >
-                      {sample.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
 
               {/* Action Buttons */}
               <div className="flex items-center justify-between pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
@@ -2014,22 +1952,56 @@ export default function AiTraining() {
         </div>
       )}
 
-      {/* ─────────────────────────── TAB 2: LEARNED ALIASES ─────────────────────────── */}
-      {activeTab === 'aliases' && (
+      {/* ─────────────────────────── TAB 2: OTHER (ALIASES & MEMORY) ─────────────────────────── */}
+      {activeTab === 'other' && (
         <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-bold" style={{ color: 'var(--text)' }}>Learned Aliases Memory</h2>
-              <p className="text-xs text-muted" style={{ color: 'var(--text-3)' }}>
-                These aliases are injected into Gemini&apos;s context and matching rules for your company.
-              </p>
+          {/* Sub Navigation */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4" style={{ borderColor: 'var(--border)' }}>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setOtherSubTab('aliases')}
+                className={`text-xs px-3.5 py-1.5 rounded-lg font-semibold transition ${
+                  otherSubTab === 'aliases'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'border text-muted hover:text-foreground'
+                }`}
+                style={otherSubTab !== 'aliases' ? { borderColor: 'var(--border)', backgroundColor: 'var(--bg-card)' } : {}}
+              >
+                Learned Aliases ({aliases.product_aliases.length + aliases.party_aliases.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setOtherSubTab('history')}
+                className={`text-xs px-3.5 py-1.5 rounded-lg font-semibold transition ${
+                  otherSubTab === 'history'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'border text-muted hover:text-foreground'
+                }`}
+                style={otherSubTab !== 'history' ? { borderColor: 'var(--border)', backgroundColor: 'var(--bg-card)' } : {}}
+              >
+                Verified Golden Examples ({trainingExamples.length})
+              </button>
             </div>
-            <Button variant="primary" onClick={() => setShowAliasModal(true)} className="text-xs w-full sm:w-auto justify-center">
-              <Plus className="w-3.5 h-3.5 mr-1.5" /> Add Manual Alias
-            </Button>
+            {otherSubTab === 'aliases' && (
+              <Button variant="primary" onClick={() => setShowAliasModal(true)} className="text-xs w-full sm:w-auto justify-center">
+                <Plus className="w-3.5 h-3.5 mr-1.5" /> Add Manual Alias
+              </Button>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {otherSubTab === 'aliases' && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-base font-bold" style={{ color: 'var(--text)' }}>Learned Aliases Memory</h2>
+                  <p className="text-xs text-muted" style={{ color: 'var(--text-3)' }}>
+                    These aliases map WhatsApp shorthand names directly to your catalog items and customer accounts.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Product Aliases */}
             <Panel className="border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
               <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-nav)' }}>
@@ -2180,13 +2152,12 @@ export default function AiTraining() {
                 )}
               </div>
             </Panel>
-          </div>
-        </div>
-      )}
+              </div>
+            </div>
+          )}
 
-      {/* ─────────────────────────── TAB 3: TRAINING HISTORY ─────────────────────────── */}
-      {activeTab === 'history' && (
-        <div className="space-y-4">
+          {otherSubTab === 'history' && (
+            <div className="space-y-4">
           <div>
             <h2 className="text-base font-bold" style={{ color: 'var(--text)' }}>Verified Golden Training Examples</h2>
             <p className="text-xs text-muted" style={{ color: 'var(--text-3)' }}>
@@ -2274,6 +2245,8 @@ export default function AiTraining() {
               )}
             </div>
           </Panel>
+            </div>
+          )}
         </div>
       )}
 
