@@ -4,8 +4,8 @@ import apiCache from '../api/apiCache';
 
 const NavigationMemoryContext = createContext(null);
 
-const STORAGE_KEY_SCROLL = 'softbill_nav_scroll_v1';
-const STORAGE_KEY_STATE = 'softbill_nav_state_v1';
+const STORAGE_KEY_SCROLL = 'softbill_nav_scroll_v2';
+const STORAGE_KEY_STATE = 'softbill_nav_state_v2';
 
 /**
  * Centralized Navigation Memory Provider.
@@ -26,6 +26,7 @@ export function NavigationMemoryProvider({ children }) {
   // Restore session storage cache on first mount (for page reload resilience)
   useEffect(() => {
     try {
+      try { sessionStorage.removeItem('softbill_nav_scroll_v1'); sessionStorage.removeItem('softbill_nav_state_v1'); } catch (_) {}
       const savedScroll = sessionStorage.getItem(STORAGE_KEY_SCROLL);
       if (savedScroll) {
         const parsed = JSON.parse(savedScroll);
@@ -123,15 +124,26 @@ export function NavigationMemoryProvider({ children }) {
 
   /** Save UI state for a page/route */
   const savePageState = useCallback((pageKey, state) => {
-    const prev = stateMapRef.current.get(pageKey) || {};
-    const updated = typeof state === 'function' ? state(prev) : { ...prev, ...state };
-    stateMapRef.current.set(pageKey, updated);
+    const prev = stateMapRef.current.get(pageKey);
+    let nextValue;
+    if (typeof state === 'function') {
+      nextValue = state(prev);
+    } else if (state !== null && typeof state === 'object' && !Array.isArray(state)) {
+      nextValue = { ...(prev && typeof prev === 'object' && !Array.isArray(prev) ? prev : {}), ...state };
+    } else {
+      nextValue = state;
+    }
+    stateMapRef.current.set(pageKey, nextValue);
   }, []);
 
   /** Get UI state for a page/route */
-  const getPageState = useCallback((pageKey, defaultState = {}) => {
+  const getPageState = useCallback((pageKey, defaultState = undefined) => {
     const existing = stateMapRef.current.get(pageKey);
-    return existing !== undefined ? existing : defaultState;
+    if (existing === undefined) return defaultState;
+    if (typeof defaultState === 'string' && typeof existing !== 'string') return defaultState;
+    if (typeof defaultState === 'number' && typeof existing !== 'number') return defaultState;
+    if (typeof defaultState === 'boolean' && typeof existing !== 'boolean') return defaultState;
+    return existing;
   }, []);
 
   /** Clean up on logout or session change */

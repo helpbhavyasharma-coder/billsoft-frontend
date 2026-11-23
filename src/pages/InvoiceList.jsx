@@ -57,16 +57,21 @@ export default function InvoiceList() {
   const fetchInvoices = async (silent = false) => {
     if (!silent && invoices.length === 0) setLoading(true);
     try {
+      const cleanSearch = (typeof search === 'string' && search.trim() && search !== '[object Object]') ? search.trim() : '';
+      const cleanStatus = (typeof status === 'string' && status.trim() && status !== '[object Object]') ? status.trim() : '';
+      const validPage = Number.isInteger(Number(pagination?.page)) && Number(pagination?.page) > 0 ? Number(pagination?.page) : 1;
+      const validLimit = Number.isInteger(Number(limit)) && Number(limit) > 0 ? Number(limit) : 20;
+
       const params = new URLSearchParams({
-        page: pagination.page,
-        limit: limit,
-        ...(search && { search }),
-        ...(status && { status }),
+        page: validPage,
+        limit: validLimit,
+        ...(cleanSearch && { search: cleanSearch }),
+        ...(cleanStatus && { status: cleanStatus }),
       });
       const { data } = await api.getCached(`/invoices?${params}`);
       if (data.success) {
-        setInvoices(data.invoices);
-        setPagination(data.pagination);
+        setInvoices(data.invoices || []);
+        if (data.pagination) setPagination(data.pagination);
       }
     } catch {
       toast.error('Failed to load invoices.');

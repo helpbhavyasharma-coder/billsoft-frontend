@@ -14,7 +14,11 @@ export function usePageMemory(key, defaultValue) {
 
   // Initialize with saved state if available, else defaultValue
   const [state, setStateInternal] = useState(() => {
-    return getPageState(key, defaultValue);
+    const val = getPageState(key, defaultValue);
+    if (typeof defaultValue === 'string' && typeof val !== 'string') return defaultValue;
+    if (typeof defaultValue === 'number' && typeof val !== 'number') return defaultValue;
+    if (typeof defaultValue === 'boolean' && typeof val !== 'boolean') return defaultValue;
+    return val !== undefined ? val : defaultValue;
   });
 
   const stateRef = useRef(state);

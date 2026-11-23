@@ -34,7 +34,8 @@ export default function Parties() {
   const fetchParties = async (silent = false) => {
     if (!silent && parties.length === 0) setLoading(true);
     try {
-      const params = search ? `?search=${encodeURIComponent(search)}` : '';
+      const cleanSearch = (typeof search === 'string' && search.trim() && search !== '[object Object]') ? search.trim() : '';
+      const params = cleanSearch ? `?search=${encodeURIComponent(cleanSearch)}` : '';
       const { data } = await api.getCached(`/parties${params}`);
       if (data.success) setParties(data.parties);
     } catch {

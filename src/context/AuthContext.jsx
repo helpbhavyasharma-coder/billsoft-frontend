@@ -1,3 +1,4 @@
+import apiCache from '../api/apiCache';
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { flushSync } from 'react-dom';
 import toast from 'react-hot-toast';
@@ -104,7 +105,8 @@ export const AuthProvider = ({ children }) => {
 
       if (status === 401) {
         // Genuine session revocation or invalid credentials: wipe local token
-        localStorage.removeItem('token');
+        apiCache.clear();
+    localStorage.removeItem('token');
         if (silent) {
           // If on a background check, trigger prompt modal without destroying loaded page
           setSessionExpired(true);
@@ -161,6 +163,7 @@ export const AuthProvider = ({ children }) => {
   const completeBhauuLogin = async (code, state, codeVerifier) => {
     const { data } = await api.post('/auth/bhauu/exchange', { code, state, code_verifier: codeVerifier });
     if (data.success) {
+      apiCache.clear();
       localStorage.setItem('token', data.token);
       setSessionExpired(false);
       await fetchMe();
@@ -172,6 +175,7 @@ export const AuthProvider = ({ children }) => {
     try {
       await api.post('/auth/logout');
     } catch (e) {}
+    apiCache.clear();
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     try {
