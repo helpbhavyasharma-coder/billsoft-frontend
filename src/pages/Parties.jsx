@@ -6,6 +6,7 @@ import { Plus, Edit, Trash2, X, Phone } from 'lucide-react';
 import { INDIAN_STATES } from '../data/states';
 import { isValidGstinOrNA, normalizeGstin } from '../utils/gstin';
 import { EmptyState, IconButton, LoadingState, PageHeader, SearchField } from '../components/ui';
+import usePageMemory from '../hooks/usePageMemory';
 
 const emptyForm = {
   name: '', address: '', city: '', state: '', mobile: '',
@@ -22,7 +23,7 @@ const randomPlaceholder = PARTY_PLACEHOLDERS[Math.floor(Math.random() * PARTY_PL
 export default function Parties() {
   const [parties, setParties] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = usePageMemory('parties_search', '');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
@@ -30,11 +31,11 @@ export default function Parties() {
 
   useEffect(() => { fetchParties(); }, [search]);
 
-  const fetchParties = async () => {
-    setLoading(true);
+  const fetchParties = async (silent = false) => {
+    if (!silent && parties.length === 0) setLoading(true);
     try {
       const params = search ? `?search=${encodeURIComponent(search)}` : '';
-      const { data } = await api.get(`/parties${params}`);
+      const { data } = await api.getCached(`/parties${params}`);
       if (data.success) setParties(data.parties);
     } catch {
       toast.error('Failed to load parties.');
@@ -86,11 +87,13 @@ export default function Parties() {
   const handleDelete = async (party) => {
     if (!confirm(`Delete "${party.name}"?`)) return;
     try {
+      setParties(prev => prev.filter(p => p.id !== party.id));
       await api.delete(`/parties/${party.id}`);
       toast.success('Party deleted.');
-      fetchParties();
+      fetchParties(true);
     } catch {
       toast.error('Failed to delete party.');
+      fetchParties();
     }
   };
 

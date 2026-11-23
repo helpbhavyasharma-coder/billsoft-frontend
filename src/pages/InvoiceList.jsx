@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { buildInvoiceFileName, downloadInvoicePdf, generateInvoicePdfBlob, triggerFileDownload } from '../utils/invoicePdf';
 import { useAuth } from '../context/AuthContext';
 import { EmptyState, IconButton, LoadingState, PageHeader, SearchField, StatusBadge } from '../components/ui';
+import usePageMemory from '../hooks/usePageMemory';
 
 const getInvoiceSortKey = (invoice) => {
   const invoiceNo = String(invoice?.invoice_no || '');
@@ -35,11 +36,11 @@ export default function InvoiceList() {
   const { company } = useAuth();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
-  const [limit, setLimit] = useState(20);
+  const [search, setSearch] = usePageMemory('invoices_search', '');
+  const [status, setStatus] = usePageMemory('invoices_status', '');
+  const [limit, setLimit] = usePageMemory('invoices_limit', 20);
   const [customLimit, setCustomLimit] = useState('20');
-  const [pagination, setPagination] = useState({ total: 0, page: 1, pages: 1 });
+  const [pagination, setPagination] = usePageMemory('invoices_pagination', { total: 0, page: 1, pages: 1 });
   const [downloading, setDownloading] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const [selectedById, setSelectedById] = useState({});
@@ -53,8 +54,8 @@ export default function InvoiceList() {
     fetchInvoices();
   }, [search, status, pagination.page, limit]);
 
-  const fetchInvoices = async () => {
-    setLoading(true);
+  const fetchInvoices = async (silent = false) => {
+    if (!silent && invoices.length === 0) setLoading(true);
     try {
       const params = new URLSearchParams({
         page: pagination.page,
@@ -62,7 +63,7 @@ export default function InvoiceList() {
         ...(search && { search }),
         ...(status && { status }),
       });
-      const { data } = await api.get(`/invoices?${params}`);
+      const { data } = await api.getCached(`/invoices?${params}`);
       if (data.success) {
         setInvoices(data.invoices);
         setPagination(data.pagination);

@@ -3,6 +3,7 @@ import api from '../api/axios';
 import toast from 'react-hot-toast';
 import { Plus, Edit, Trash2, X, Package } from 'lucide-react';
 import { EmptyState, IconButton, LoadingState, Money, PageHeader, SearchField } from '../components/ui';
+import usePageMemory from '../hooks/usePageMemory';
 
 const emptyForm = {
   name: '',
@@ -23,7 +24,7 @@ const GST_RATES = [0, 5, 12, 18, 28];
 export default function Products() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = usePageMemory('products_search', '');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
@@ -31,10 +32,10 @@ export default function Products() {
 
   useEffect(() => { fetchProducts(); }, []);
 
-  const fetchProducts = async () => {
-    setLoading(true);
+  const fetchProducts = async (silent = false) => {
+    if (!silent && products.length === 0) setLoading(true);
     try {
-      const { data } = await api.get('/products');
+      const { data } = await api.getCached('/products');
       if (data.success) setProducts(data.products);
     } catch {
       toast.error('Failed to load products.');
@@ -109,11 +110,13 @@ export default function Products() {
   const handleDelete = async (product) => {
     if (!confirm(`Delete "${product.name}"?`)) return;
     try {
+      setProducts(prev => prev.filter(p => p.id !== product.id));
       await api.delete(`/products/${product.id}`);
       toast.success('Product deleted.');
-      fetchProducts();
+      fetchProducts(true);
     } catch {
       toast.error('Failed to delete product.');
+      fetchProducts();
     }
   };
 

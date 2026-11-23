@@ -1,3 +1,4 @@
+import usePageMemory from '../hooks/usePageMemory';
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
@@ -9,10 +10,10 @@ export default function Quotations() {
   const navigate = useNavigate();
   const [quotations, setQuotations] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
+  const [search, setSearch] = usePageMemory('quotations_search', '');
+  const [status, setStatus] = usePageMemory('quotations_status', '');
   const [convertingId, setConvertingId] = useState(null);
-  const [pagination, setPagination] = useState({ total: 0, page: 1, pages: 1 });
+  const [pagination, setPagination] = usePageMemory('quotations_pagination', { total: 0, page: 1, pages: 1 });
 
   useEffect(() => {
     fetchQuotations();
@@ -28,7 +29,7 @@ export default function Quotations() {
       if (search) params.append('search', search);
       if (status) params.append('status', status);
 
-      const { data } = await api.get(`/quotations?${params}`);
+      const { data } = await api.getCached(`/quotations?${params}`);
       if (data.success) {
         setQuotations(data.quotations);
         if (data.pagination) setPagination(data.pagination);

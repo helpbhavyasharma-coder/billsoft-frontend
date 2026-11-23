@@ -174,6 +174,10 @@ export const AuthProvider = ({ children }) => {
     } catch (e) {}
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    try {
+      sessionStorage.removeItem('softbill_nav_scroll_v1');
+      sessionStorage.removeItem('softbill_nav_state_v1');
+    } catch (_) {}
     setUser(null);
     setCompany(null);
     setAuthError(null);

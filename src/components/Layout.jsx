@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import {
@@ -195,8 +195,12 @@ export default function Layout({ children }) {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4 lg:p-6 pb-20 sm:pb-24 lg:pb-8" style={{ backgroundColor: 'var(--bg)', overscrollBehavior: 'contain' }}>
-          {children}
+        <main
+          id="app-main-content"
+          className="flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4 lg:p-6 pb-20 sm:pb-24 lg:pb-8"
+          style={{ backgroundColor: 'var(--bg)', overscrollBehavior: 'contain' }}
+        >
+          {children || <Outlet />}
           {/* Safe buffer space matching/exceeding heading height so bottom is never obscured */}
           <div className="h-16 sm:h-10 w-full flex-shrink-0 pointer-events-none" aria-hidden="true" />
         </main>

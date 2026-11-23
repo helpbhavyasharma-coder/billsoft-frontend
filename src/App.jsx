@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { NavigationMemoryProvider } from './context/NavigationMemoryContext';
+import GlobalScrollRestorationManager from './components/GlobalScrollRestorationManager';
 import Layout from './components/Layout';
 import AuthCallback from './pages/AuthCallback';
 import LandingPage from './landing/LandingPage';
@@ -395,14 +397,17 @@ export default function App() {
     <BrowserRouter>
       <ThemeProvider>
         <AuthProvider>
-          <AppRoutes />
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              duration: 3000,
-              style: { fontSize: '14px' },
-            }}
-          />
+          <NavigationMemoryProvider>
+            <GlobalScrollRestorationManager />
+            <AppRoutes />
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 3000,
+                style: { fontSize: '14px' },
+              }}
+            />
+          </NavigationMemoryProvider>
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>

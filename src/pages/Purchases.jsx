@@ -1,3 +1,4 @@
+import usePageMemory from '../hooks/usePageMemory';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
@@ -72,7 +73,7 @@ export default function Purchases() {
   const [editingId, setEditingId] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [form, setForm] = useState(emptyForm);
-  const [statusFilter, setStatusFilter] = useState('active');
+  const [statusFilter, setStatusFilter] = usePageMemory('purchases_status_filter', 'active');
 
   // Cancellation modal state
   const [cancellingPurchase, setCancellingPurchase] = useState(null);
@@ -86,9 +87,9 @@ export default function Purchases() {
     setLoading(true);
     try {
       const [purchaseRes, productRes, partyRes] = await Promise.all([
-        api.get(`/purchases?status=${statusFilter}`),
-        api.get('/products'),
-        api.get('/parties'),
+        api.getCached(`/purchases?status=${statusFilter}`),
+        api.getCached('/products'),
+        api.getCached('/parties'),
       ]);
       if (purchaseRes.data.success) setPurchases(purchaseRes.data.purchases);
       if (productRes.data.success) setProducts(productRes.data.products);

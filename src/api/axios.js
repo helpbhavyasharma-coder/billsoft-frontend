@@ -1,4 +1,5 @@
 import axios from 'axios';
+import apiCache from './apiCache';
 
 /** PHP/MySQL API. Override with VITE_API_URL when deploying to another domain. */
 const DEFAULT_PUBLIC_API = '/BhaviSoft/billing-software/php-backend';
@@ -33,9 +34,20 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401: expired/invalid session. Notify React AuthContext gracefully instead of hard browser reload.
+// Automatically invalidate cache on mutating methods (POST, PUT, DELETE, PATCH)
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const method = (response.config.method || 'get').toLowerCase();
+    if (['post', 'put', 'delete', 'patch'].includes(method)) {
+      const url = response.config.url || '';
+      // Extract root resource (e.g. '/parties/123' -> 'parties')
+      const match = url.replace(/^\//, '').split(/[/?]/)[0];
+      if (match) {
+        apiCache.invalidate(match);
+      }
+    }
+    return response;
+  },
   (error) => {
     if (error.response?.status === 401) {
       const reqPath = error.config?.url || '';
@@ -46,6 +58,7 @@ api.interceptors.response.use(
       const canRenew = Boolean(error.response?.data?.can_renew);
       if (errorCode === 'SESSION_REVOKED') {
         localStorage.removeItem('token');
+        apiCache.clear();
       }
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
@@ -65,4 +78,25 @@ api.interceptors.response.use(
   }
 );
 
+/**
+ * Fetch with SWR-style in-memory caching.
+ * Resolves cached data instantly if valid, preventing blank loading states on Back navigation.
+ */
+api.getCached = async (url, config = {}) => {
+  const cacheKey = apiCache.generateKey(url, config.params);
+  const cached = apiCache.get(cacheKey);
+
+  if (cached) {
+    // Return cached immediately; optionally revalidate in background if desired
+    return { data: cached, fromCache: true };
+  }
+
+  const response = await api.get(url, config);
+  if (response.data?.success) {
+    apiCache.set(cacheKey, response.data);
+  }
+  return response;
+};
+
+export { apiCache };
 export default api;

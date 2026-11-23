@@ -1,3 +1,4 @@
+import smartBack from '../utils/navigation';
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
@@ -41,7 +42,7 @@ export default function PurchaseOrderDetail() {
       const { data } = await api.post(`/purchase-orders/${id}/convert`);
       if (data.success) {
         toast.success(data.message || 'PO converted to Purchase Bill!');
-        navigate('/purchases');
+        smartBack(navigate, '/purchases');
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Conversion failed');

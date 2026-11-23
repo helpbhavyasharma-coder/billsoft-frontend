@@ -1,3 +1,4 @@
+import smartBack from '../utils/navigation';
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import api from '../api/axios';
@@ -250,7 +251,7 @@ export default function DebitNoteForm() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => navigate('/debit-notes')}
+            onClick={() => smartBack(navigate, '/debit-notes')}
             className="p-2 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />

@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { Edit, FileDown, ArrowLeft, Plus, Trash2, X, Printer, Share2, RotateCcw, Sparkles, Truck } from 'lucide-react';
 import { format } from 'date-fns';
 import { downloadInvoicePdf, shareInvoicePdf } from '../utils/invoicePdf';
+import smartBack from '../utils/navigation';
 import { useAuth } from '../context/AuthContext';
 import { EmptyState, IconButton, LoadingState, StatusBadge } from '../components/ui';
 
@@ -86,7 +87,7 @@ export default function InvoiceDetail() {
     try {
       await api.delete(`/invoices/${id}`);
       toast.success('Invoice deleted.');
-      navigate('/invoices');
+      smartBack(navigate, '/invoices');
     } catch {
       toast.error('Failed to delete.');
     }
@@ -270,7 +271,7 @@ export default function InvoiceDetail() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
-          <IconButton label="Back to invoices" onClick={() => navigate('/invoices')}>
+          <IconButton label="Back to invoices" onClick={() => smartBack(navigate, '/invoices')}>
             <ArrowLeft className="w-5 h-5" />
           </IconButton>
           <div>

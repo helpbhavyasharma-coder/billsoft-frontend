@@ -1,3 +1,4 @@
+import smartBack from '../utils/navigation';
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
@@ -23,11 +24,11 @@ export default function CreditNoteDetail() {
         setCreditNote(data.credit_note || data.return);
       } else {
         toast.error('Credit note not found');
-        navigate('/credit-notes');
+        smartBack(navigate, '/credit-notes');
       }
     } catch (err) {
       toast.error('Failed to load credit note details');
-      navigate('/credit-notes');
+      smartBack(navigate, '/credit-notes');
     } finally {
       setLoading(false);
     }
@@ -54,7 +55,7 @@ export default function CreditNoteDetail() {
       const { data } = await api.delete(`/credit-notes/${id}`);
       if (data.success) {
         toast.success(data.message || 'Credit note cancelled successfully');
-        navigate('/credit-notes');
+        smartBack(navigate, '/credit-notes');
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to cancel credit note');
@@ -71,7 +72,7 @@ export default function CreditNoteDetail() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => navigate('/credit-notes')}
+            onClick={() => smartBack(navigate, '/credit-notes')}
             className="p-2 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
