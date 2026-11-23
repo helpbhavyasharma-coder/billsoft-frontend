@@ -81,7 +81,7 @@ export default function AuthCallback() {
   useEffect(() => {
     if (!user || !isEmbeddedWindow()) return;
     window.parent.postMessage(
-      { source: 'billsoft-bhauu-auth', status: 'success', target: getPostAuthTarget(user, company) },
+      { source: 'SoftBill-bhauu-auth', status: 'success', target: getPostAuthTarget(user, company) },
       window.location.origin,
     );
   }, [company, user]);
@@ -108,7 +108,7 @@ export default function AuthCallback() {
         setMessage(payload.error);
       } else {
         setStatus('success');
-        setMessage('Bhauu Auth verified. Returning to BillSoft...');
+        setMessage('Bhauu Auth verified. Returning to SoftBill...');
       }
       return;
     }
@@ -143,7 +143,7 @@ export default function AuthCallback() {
         toast.success('Signed in with Bhauu Auth');
         const target = data.isAdmin ? '/admin' : data.hasCompany ? '/dashboard' : '/company/setup';
         if (isEmbeddedWindow()) {
-          window.parent.postMessage({ source: 'billsoft-bhauu-auth', status: 'success', target }, window.location.origin);
+          window.parent.postMessage({ source: 'SoftBill-bhauu-auth', status: 'success', target }, window.location.origin);
           return;
         }
         setTimeout(() => navigate(target, { replace: true }), 350);
@@ -165,7 +165,7 @@ export default function AuthCallback() {
         <div className="min-h-screen flex items-center justify-center p-4 bg-white">
           <div className="text-center">
             <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-blue-600" />
-            <p className="text-sm font-medium text-slate-700">Opening BillSoft...</p>
+            <p className="text-sm font-medium text-slate-700">Opening SoftBill...</p>
           </div>
         </div>
       );
@@ -182,7 +182,7 @@ export default function AuthCallback() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4 shadow-lg">
             <FileText className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>BillSoft</h1>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>SoftBill</h1>
           <p className="text-sm mt-1" style={{ color: 'var(--text-3)' }}>Bhauu Auth Gateway</p>
         </div>
 

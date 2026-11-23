@@ -62,13 +62,15 @@ export const Navbar: React.FC<NavbarProps> = ({
           className="flex items-center gap-2 group focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded-lg p-0.5 cursor-pointer"
           id="brand-logo"
         >
-          <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-xs group-hover:bg-emerald-700 transition-colors">
-            <ReceiptText className="w-4 h-4" />
-          </div>
+          <img 
+            src="/favicon.svg" 
+            alt="SoftBill Logo" 
+            className="w-8 h-8 rounded-lg shadow-xs group-hover:scale-105 transition-transform" 
+          />
           <div className="flex flex-col">
             <div className="flex items-center gap-1.5">
               <span className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white">
-                Bill<span className="text-emerald-600 dark:text-emerald-400">Soft</span>
+                Soft<span className="text-emerald-600 dark:text-emerald-400">Bill</span>
               </span>
               <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hidden min-[400px]:inline-block">
                 {t.gstReady}

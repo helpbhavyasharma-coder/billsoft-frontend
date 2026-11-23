@@ -59,7 +59,7 @@ export const ReportsSection: React.FC = () => {
             Sales Turnover &amp; GST Reporting Ready for Your CA
           </h2>
           <p className="mt-1.5 text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-            Eliminate end-of-month rush. BillSoft organizes your sales, purchases, and tax slabs automatically for one-click Excel export.
+            Eliminate end-of-month rush. SoftBill organizes your sales, purchases, and tax slabs automatically for one-click Excel export.
           </p>
         </div>
 

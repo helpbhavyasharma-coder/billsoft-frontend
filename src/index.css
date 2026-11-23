@@ -58,15 +58,24 @@ html.dark {
   --badge-paid-text:   #86efac;
 }
 
-/* ── Base & Viewport Lock ── */
-html, body, #root {
-  height: 100%;
-  height: 100dvh;
-  max-height: 100dvh;
-  overflow: hidden;
-  overscroll-behavior: none;
-  overscroll-behavior-y: none;
+/* ── Base Styles & Viewport Setup ── */
+html {
+  scroll-behavior: smooth;
+  min-height: 100%;
+}
+
+html, body {
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
   -webkit-overflow-scrolling: touch;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
 }
 
 body {
@@ -75,7 +84,6 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   transition: background-color 0.2s, color 0.2s;
-  overscroll-behavior-y: none;
   position: relative;
 }
 

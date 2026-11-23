@@ -334,7 +334,7 @@ export const SampleInvoiceModal: React.FC<SampleInvoiceModalProps> = ({
                   *** Thank You! Visit Again ***
                 </div>
                 <div className="text-[8px] text-slate-400">
-                  Powered by BillSoft
+                  Powered by SoftBill
                 </div>
               </div>
             </div>

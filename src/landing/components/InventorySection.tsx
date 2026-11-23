@@ -90,7 +90,7 @@ export const InventorySection: React.FC = () => {
             </h2>
 
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-              Never let popular items run dry or capital stay tied in dead stock. BillSoft automatically deducts stock upon every sales invoice and increments upon logging supplier purchase bills.
+              Never let popular items run dry or capital stay tied in dead stock. SoftBill automatically deducts stock upon every sales invoice and increments upon logging supplier purchase bills.
             </p>
 
             {/* Benefit Checkpoints */}

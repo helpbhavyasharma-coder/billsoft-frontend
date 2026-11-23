@@ -367,8 +367,8 @@ export default function LandingPage() {
       type: 'whatsapp',
       title: language === 'hi' ? 'व्हाट्सएप बिल भेजा गया' : 'WhatsApp Share Dispatched',
       message: language === 'hi'
-        ? 'बिलसॉफ्ट ने पक्का जीएसटी टैक्स इनवॉइस लिंक और सारांश सीधे ग्राहक के व्हाट्सएप पर भेजने हेतु तैयार कर दिया।'
-        : 'BillSoft generated the official GST tax invoice PDF link and pre-composed billing summary for one-click WhatsApp customer dispatch.'
+        ? 'सॉफ्टबिल (SoftBill) ने पक्का जीएसटी टैक्स इनवॉइस लिंक और सारांश सीधे ग्राहक के व्हाट्सएप पर भेजने हेतु तैयार कर दिया।'
+        : 'SoftBill generated the official GST tax invoice PDF link and pre-composed billing summary for one-click WhatsApp customer dispatch.'
     });
   };
 

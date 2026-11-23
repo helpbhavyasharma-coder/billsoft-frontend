@@ -49,7 +49,7 @@ export const SecurityAuthSection: React.FC<SecurityAuthSectionProps> = ({ onLogi
             Enterprise Protection Powered by Bhauu Auth
           </h2>
           <p className="mt-1.5 text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-            Your billing records are your business lifeline. BillSoft pairs daily counter speed with robust authentication managed via Bhauu Auth.
+            Your billing records are your business lifeline. SoftBill pairs daily counter speed with robust authentication managed via Bhauu Auth.
           </p>
         </div>
 
@@ -80,7 +80,7 @@ export const SecurityAuthSection: React.FC<SecurityAuthSectionProps> = ({ onLogi
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
             <span className="text-[11px] sm:text-xs">
-              BillSoft accounts authenticate directly through your configured <strong>Bhauu Auth SSO</strong> provider.
+              SoftBill accounts authenticate directly through your configured <strong>Bhauu Auth SSO</strong> provider.
             </span>
           </div>
 

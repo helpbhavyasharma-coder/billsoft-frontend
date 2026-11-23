@@ -24,7 +24,7 @@ export const TRANSLATIONS = {
     heroDesc: 'Print compliant GST tax invoices & thermal POS slips in under 5 seconds. Live barcode stock tracking, customer udhari khata on WhatsApp, and secure enterprise login powered by Bhauu Auth.',
     loginToStart: 'Login to Start Billing',
     exploreFeatures: 'Explore Features',
-    authNote: 'BillSoft identity is secured with multi-factor Bhauu Auth SSO.',
+    authNote: 'SoftBill identity is secured with multi-factor Bhauu Auth SSO.',
 
     // Business Presets
     presetLabel: 'Switch Business Demo Preset:',
@@ -36,7 +36,7 @@ export const TRANSLATIONS = {
     // FAQ Section
     faqBadge: 'Got Questions?',
     faqTitle: 'Frequently Asked Questions by Vyaparis',
-    faqSubtitle: 'Everything you need to know about setting up BillSoft on your shop counter.',
+    faqSubtitle: 'Everything you need to know about setting up SoftBill on your shop counter.',
 
     // Calculator Section
     calcBadge: 'Instant Tax Tool',

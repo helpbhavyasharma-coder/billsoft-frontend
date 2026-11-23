@@ -37,7 +37,7 @@ export const FinalCTA: React.FC<FinalCTAProps> = ({ onLoginClick }) => {
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 text-xs sm:text-sm font-bold text-slate-950 bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 rounded-lg shadow-md shadow-emerald-400/20 transition-all transform hover:-translate-y-0.5 cursor-pointer"
               >
                 <LogIn className="w-4 h-4 text-slate-950" />
-                <span>Login to BillSoft</span>
+                <span>Login to SoftBill</span>
                 <ArrowRight className="w-3.5 h-3.5 text-slate-950" />
               </button>
             </div>

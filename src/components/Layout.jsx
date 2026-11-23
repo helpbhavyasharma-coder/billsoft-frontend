@@ -91,7 +91,7 @@ export default function Layout({ children }) {
             )}
             <div className="min-w-0">
               <p className="text-xs font-bold leading-tight truncate" style={{ color: 'var(--text)' }}>
-                {company?.company_name || 'BillSoft'}
+                {company?.company_name || 'SoftBill'}
               </p>
               <p className="text-xs" style={{ color: 'var(--text-3)' }}>Billing Software</p>
             </div>
@@ -175,7 +175,7 @@ export default function Layout({ children }) {
           </button>
           <div className="flex-1 lg:hidden">
             <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
-              {navItems.find(n => location.pathname.startsWith(n.path))?.label || 'BillSoft'}
+              {navItems.find(n => location.pathname.startsWith(n.path))?.label || 'SoftBill'}
             </p>
           </div>
           <div className="hidden lg:flex flex-1" />

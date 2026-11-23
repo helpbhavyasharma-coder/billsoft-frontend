@@ -15,27 +15,27 @@ const FAQ_DATA: FAQItem[] = [
     category: 'Hardware & Printers',
     qEn: 'Can I connect my existing Thermal POS printer or Barcode Scanner?',
     qHi: 'क्या मैं अपना मौजूदा थर्मल पीओएस प्रिंटर या बारकोड स्कैनर जोड़ सकता हूँ?',
-    aEn: 'Yes! BillSoft supports all standard 2-inch (58mm) and 3-inch (80mm) ESC/POS USB, Bluetooth, and Wi-Fi thermal receipt printers (TVS, Epson, NGX, Everycom). Plug-and-play USB & wireless laser barcode scanners work natively without installing special drivers.',
-    aHi: 'हाँ! बिलसॉफ्ट सभी सामान्य 2-इंच (58mm) और 3-इंच (80mm) थर्मल प्रिंटर (TVS, Epson, NGX) और किसी भी यूएसबी या वायरलेस बारकोड स्कैनर को बिना किसी ड्राइवर की परेशानी के सीधे सपोर्ट करता है।'
+    aEn: 'Yes! SoftBill supports all standard 2-inch (58mm) and 3-inch (80mm) ESC/POS USB, Bluetooth, and Wi-Fi thermal receipt printers (TVS, Epson, NGX, Everycom). Plug-and-play USB & wireless laser barcode scanners work natively without installing special drivers.',
+    aHi: 'हाँ! सॉफ्टबिल (SoftBill) सभी सामान्य 2-इंच (58mm) और 3-इंच (80mm) थर्मल प्रिंटर (TVS, Epson, NGX) और किसी भी यूएसबी या वायरलेस बारकोड स्कैनर को बिना किसी ड्राइवर की परेशानी के सीधे सपोर्ट करता है।'
   },
   {
     category: 'Internet & Offline',
     qEn: 'Does counter billing work if internet connection drops temporarily?',
     qHi: 'क्या इंटरनेट बंद या धीमा होने पर भी काउंटर बिलिंग चालू रहेगी?',
-    aEn: 'Yes. BillSoft features local client caching that allows you to continue punching counter bills, scanning barcodes, and printing receipts even during brief network fluctuations. Once internet restores, all bills automatically sync.',
-    aHi: 'हाँ। बिलसॉफ्ट में लोकल कैशिंग सपोर्ट है जिससे अगर दुकान पर थोड़ी देर इंटरनेट चला भी जाए, तो भी आप ग्राहकों को बिल बनाकर रसीद प्रिंट करके दे सकते हैं। नेट आते ही डेटा अपने आप सुरक्षित हो जाता है।'
+    aEn: 'Yes. SoftBill features local client caching that allows you to continue punching counter bills, scanning barcodes, and printing receipts even during brief network fluctuations. Once internet restores, all bills automatically sync.',
+    aHi: 'हाँ। सॉफ्टबिल (SoftBill) में लोकल कैशिंग सपोर्ट है जिससे अगर दुकान पर थोड़ी देर इंटरनेट चला भी जाए, तो भी आप ग्राहकों को बिल बनाकर रसीद प्रिंट करके दे सकते हैं। नेट आते ही डेटा अपने आप सुरक्षित हो जाता है।'
   },
   {
     category: 'Khata & Migration',
-    qEn: 'How do I transfer my old customer balance (Udhaari/Khata) into BillSoft?',
-    qHi: 'मैं अपने ग्राहकों का पुराना बकाया (उधारी खाता) बिलसॉफ्ट में कैसे ला सकता हूँ?',
+    qEn: 'How do I transfer my old customer balance (Udhaari/Khata) into SoftBill?',
+    qHi: 'मैं अपने ग्राहकों का पुराना बकाया (उधारी खाता) सॉफ्टबिल में कैसे ला सकता हूँ?',
     aEn: 'You can either do a 1-click bulk import from your existing Excel or CSV khata spreadsheet, or enter opening balances directly when adding customers. Each customer gets automated WhatsApp payment reminders with your store UPI QR code.',
     aHi: 'आप अपनी एक्सेल (Excel) या पुरानी डायरी से 1-क्लिक में सभी ग्राहकों का नाम, फोन और पुराना बकाया (Opening Balance) अपलोड कर सकते हैं। इसके बाद हर ग्राहक को बकाया का व्हाट्सएप मैसेज व यूपीआई क्यूआर भेजा जा सकता है।'
   },
   {
     category: 'GST & Compliance',
-    qEn: 'Does BillSoft generate GSTR-1, GSTR-3B summary and e-Way bills?',
-    qHi: 'क्या बिलसॉफ्ट से GSTR-1, GSTR-3B और टैक्स रिपोर्ट मिल जाती है?',
+    qEn: 'Does SoftBill generate GSTR-1, GSTR-3B summary and e-Way bills?',
+    qHi: 'क्या सॉफ्टबिल से GSTR-1, GSTR-3B और टैक्स रिपोर्ट मिल जाती है?',
     aEn: 'Yes. Every invoice automatically populates B2B (registered with GSTIN) and B2C (unregistered) breakdowns, HSN-wise tax summaries, and monthly totals ready to export for your CA or directly upload to the GST portal.',
     aHi: 'हाँ। हर बिल के साथ B2B (जीएसटी नंबर वाले) और B2C (खुदरा ग्राहक) का अलग-अलग HSN-wise टैक्स हिसाब बनता है, जिसे आप एक्सेल में डाउनलोड करके सीधे अपने सीए (CA) को दे सकते हैं।'
   },
@@ -69,7 +69,7 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ language }) => {
             {isHi ? 'व्यापारियों के सवाल-जवाब' : 'Frequently Asked Questions'}
           </span>
           <h2 className="mt-2 text-lg sm:text-xl md:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-            {isHi ? 'दुकानदारों द्वारा अक्सर पूछे जाने वाले जरूरी सवाल' : 'Everything Vyaparis Ask About BillSoft'}
+            {isHi ? 'दुकानदारों द्वारा अक्सर पूछे जाने वाले जरूरी सवाल' : 'Everything Vyaparis Ask About SoftBill'}
           </h2>
           <p className="mt-1.5 text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
             {isHi 

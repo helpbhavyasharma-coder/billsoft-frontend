@@ -21,11 +21,9 @@ export const Footer: React.FC<FooterProps> = ({ onLoginClick }) => {
           {/* Brand & Purpose */}
           <div className="md:col-span-2 space-y-2">
             <div className="flex items-center gap-1.5">
-              <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center">
-                <ReceiptText className="w-3.5 h-3.5" />
-              </div>
+              <img src="/favicon.svg" alt="SoftBill Logo" className="w-7 h-7 rounded-lg" />
               <span className="text-base font-bold text-white tracking-tight">
-                Bill<span className="text-emerald-400">Soft</span>
+                Soft<span className="text-emerald-400">Bill</span>
               </span>
               <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.2 rounded bg-slate-800 text-emerald-400 border border-slate-700">
                 GST Ready
@@ -71,7 +69,7 @@ export const Footer: React.FC<FooterProps> = ({ onLoginClick }) => {
                 onClick={onLoginClick}
                 className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition-colors cursor-pointer text-xs"
               >
-                <span>Login to BillSoft</span>
+                <span>Login to SoftBill</span>
               </button>
             </div>
           </div>
@@ -80,7 +78,7 @@ export const Footer: React.FC<FooterProps> = ({ onLoginClick }) => {
         {/* GST Compliance Note & Legal bar */}
         <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2 text-[10px] text-slate-400">
           <div>
-            © {currentYear} BillSoft. GST Compliant Invoicing &amp; Business Management.
+            © {currentYear} SoftBill. GST Compliant Invoicing &amp; Business Management.
           </div>
           <div className="flex items-center gap-3">
             <span>CGST / SGST / IGST</span>
