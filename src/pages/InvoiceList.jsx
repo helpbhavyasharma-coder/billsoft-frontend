@@ -37,6 +37,8 @@ export default function InvoiceList() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
+  const [limit, setLimit] = useState(20);
+  const [customLimit, setCustomLimit] = useState('20');
   const [pagination, setPagination] = useState({ total: 0, page: 1, pages: 1 });
   const [downloading, setDownloading] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -49,14 +51,14 @@ export default function InvoiceList() {
 
   useEffect(() => {
     fetchInvoices();
-  }, [search, status, pagination.page]);
+  }, [search, status, pagination.page, limit]);
 
   const fetchInvoices = async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
         page: pagination.page,
-        limit: 20,
+        limit: limit,
         ...(search && { search }),
         ...(status && { status }),
       });
@@ -268,24 +270,51 @@ export default function InvoiceList() {
 
       {/* Filters */}
       <div className="card py-3">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <SearchField
-            className="flex-1"
-            placeholder="Search invoice no. or party..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPagination(p => ({ ...p, page: 1 })); }}
-            onClear={() => { setSearch(''); setPagination(p => ({ ...p, page: 1 })); }}
-          />
-          <select
-            className="input-field w-full sm:w-40"
-            value={status}
-            onChange={(e) => { setStatus(e.target.value); setPagination(p => ({ ...p, page: 1 })); }}
-          >
-            <option value="">All Status</option>
-            <option value="unpaid">Unpaid</option>
-            <option value="partial">Partial</option>
-            <option value="paid">Paid</option>
-          </select>
+        <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+          <div className="flex flex-col sm:flex-row gap-3 flex-1">
+            <SearchField
+              className="flex-1"
+              placeholder="Search invoice no. or party..."
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPagination(p => ({ ...p, page: 1 })); }}
+              onClear={() => { setSearch(''); setPagination(p => ({ ...p, page: 1 })); }}
+            />
+            <select
+              className="input-field w-full sm:w-40"
+              value={status}
+              onChange={(e) => { setStatus(e.target.value); setPagination(p => ({ ...p, page: 1 })); }}
+            >
+              <option value="">All Status</option>
+              <option value="unpaid">Unpaid</option>
+              <option value="partial">Partial</option>
+              <option value="paid">Paid</option>
+            </select>
+          </div>
+
+          {/* Show Bills Input */}
+          <div className="flex items-center gap-2 pt-2 lg:pt-0 border-t lg:border-t-0"
+            style={{ borderColor: 'var(--border)' }}>
+            <span className="text-xs font-semibold whitespace-nowrap" style={{ color: 'var(--text-3)' }}>
+              Show Bills:
+            </span>
+            <input
+              type="number"
+              min="1"
+              max="1000"
+              className="input-field w-20 text-center text-sm py-1.5 px-2 font-semibold"
+              value={customLimit}
+              placeholder="20"
+              onChange={(e) => {
+                const val = e.target.value;
+                setCustomLimit(val);
+                const num = parseInt(val, 10);
+                if (num > 0 && num <= 1000) {
+                  setLimit(num);
+                  setPagination(p => ({ ...p, page: 1 }));
+                }
+              }}
+            />
+          </div>
         </div>
       </div>
 
@@ -364,6 +393,29 @@ export default function InvoiceList() {
                       </table>
                     </div>
 
+            {/* Mobile Select All Bar */}
+            <div className="md:hidden p-3 border-b flex items-center justify-between gap-2"
+              style={{ backgroundColor: 'var(--bg-muted)', borderColor: 'var(--border)' }}>
+              <label className="flex items-center gap-2.5 cursor-pointer font-medium select-none text-sm" style={{ color: 'var(--text)' }}>
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 rounded cursor-pointer accent-blue-600"
+                  checked={allCurrentPageSelected}
+                  onChange={toggleCurrentPage}
+                />
+                <span>Select All ({invoices.length} bills)</span>
+              </label>
+              {selectedIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={clearSelection}
+                  className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200"
+                >
+                  {selectedIds.length} selected &times;
+                </button>
+              )}
+            </div>
+
             {/* Mobile Cards */}
             <div className="md:hidden p-3 space-y-2">
               {invoices.map((inv) => (
@@ -416,27 +468,47 @@ export default function InvoiceList() {
         )}
 
         {/* Pagination */}
-        {pagination.pages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3" style={{borderTop:'1px solid var(--border)'}}>
-            <p className="text-sm" style={{color:'var(--text-3)'}}>
+        {pagination.total > 0 && (
+          <div className="flex items-center justify-between px-4 py-3 flex-wrap gap-3" style={{borderTop:'1px solid var(--border)'}}>
+            <div className="text-sm font-medium" style={{color:'var(--text-3)'}}>
               Showing {invoices.length} of {pagination.total} invoices
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPagination(p => ({ ...p, page: p.page - 1 }))}
-                disabled={pagination.page === 1}
-                className="btn-secondary text-sm py-1 px-3 disabled:opacity-40"
-              >
-                Previous
-              </button>
-              <button
-                onClick={() => setPagination(p => ({ ...p, page: p.page + 1 }))}
-                disabled={pagination.page === pagination.pages}
-                className="btn-secondary text-sm py-1 px-3 disabled:opacity-40"
-              >
-                Next
-              </button>
             </div>
+            {pagination.pages > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPagination(p => ({ ...p, page: p.page - 1 }))}
+                  disabled={pagination.page === 1}
+                  className="btn-secondary text-sm py-1 px-3 disabled:opacity-40"
+                >
+                  Previous
+                </button>
+                <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-2)' }}>
+                  <span>Page</span>
+                  <select
+                    className="input-field py-1 px-2 text-xs font-semibold w-16"
+                    value={pagination.page}
+                    onChange={(e) => {
+                      const p = parseInt(e.target.value, 10);
+                      if (p >= 1 && p <= pagination.pages) {
+                        setPagination(prev => ({ ...prev, page: p }));
+                      }
+                    }}
+                  >
+                    {Array.from({ length: pagination.pages }, (_, i) => i + 1).map((pg) => (
+                      <option key={pg} value={pg}>{pg}</option>
+                    ))}
+                  </select>
+                  <span>of {pagination.pages}</span>
+                </div>
+                <button
+                  onClick={() => setPagination(p => ({ ...p, page: p.page + 1 }))}
+                  disabled={pagination.page === pagination.pages}
+                  className="btn-secondary text-sm py-1 px-3 disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

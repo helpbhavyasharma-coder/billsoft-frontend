@@ -2,7 +2,7 @@
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { FileText, Users, TrendingUp, AlertCircle, Plus, ArrowRight, IndianRupee, Clock } from 'lucide-react';
+import { FileText, Users, TrendingUp, AlertCircle, Plus, ArrowRight, IndianRupee, Clock, ShieldCheck, Truck, Scale, Building2 } from 'lucide-react';
 import { format } from 'date-fns';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -90,6 +90,69 @@ export default function Dashboard() {
             </Link>
           </div>
         </div>
+      </div>
+
+      {/* Quick ERP Navigation Hub */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 no-print">
+        <Link to="/reports/gst" className="card p-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors group">
+          <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">GST Returns</p>
+            <p className="text-[10px] text-slate-500 truncate">GSTR-1 & 3B</p>
+          </div>
+        </Link>
+
+        <Link to="/eway-bills" className="card p-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors group">
+          <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+            <Truck className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">E-Way Bills</p>
+            <p className="text-[10px] text-slate-500 truncate">Govt JSON</p>
+          </div>
+        </Link>
+
+        <Link to="/bank-reconciliation" className="card p-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors group">
+          <div className="w-9 h-9 rounded-xl bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+            <Scale className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">Bank BRS</p>
+            <p className="text-[10px] text-slate-500 truncate">Reconcile</p>
+          </div>
+        </Link>
+
+        <Link to="/reports/profit-and-loss" className="card p-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors group">
+          <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+            <TrendingUp className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">P&L Report</p>
+            <p className="text-[10px] text-slate-500 truncate">Net Profit</p>
+          </div>
+        </Link>
+
+        <Link to="/reports/balance-sheet" className="card p-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors group">
+          <div className="w-9 h-9 rounded-xl bg-teal-100 dark:bg-teal-900/40 text-teal-600 dark:text-teal-400 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+            <Scale className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">Balance Sheet</p>
+            <p className="text-[10px] text-slate-500 truncate">Schedule III</p>
+          </div>
+        </Link>
+
+        <Link to="/warehouses" className="card p-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors group">
+          <div className="w-9 h-9 rounded-xl bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+            <Building2 className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">Godowns</p>
+            <p className="text-[10px] text-slate-500 truncate">Multi-Location</p>
+          </div>
+        </Link>
       </div>
 
       {/* Sales Chart */}

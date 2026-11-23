@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
-import { Edit, FileDown, ArrowLeft, Plus, Trash2, X, Printer, Share2, RotateCcw, Sparkles } from 'lucide-react';
+import { Edit, FileDown, ArrowLeft, Plus, Trash2, X, Printer, Share2, RotateCcw, Sparkles, Truck } from 'lucide-react';
 import { format } from 'date-fns';
 import { downloadInvoicePdf, shareInvoicePdf } from '../utils/invoicePdf';
 import { useAuth } from '../context/AuthContext';
@@ -34,8 +34,17 @@ export default function InvoiceDetail() {
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [payForm, setPayForm] = useState({
     amount: '', payment_date: format(new Date(), 'yyyy-MM-dd'),
-    payment_mode: 'cash', reference_no: '', notes: '',
+    payment_mode: 'cash', account_id: '', reference_no: '', notes: '',
   });
+  const [bankAccounts, setBankAccounts] = useState([]);
+
+  useEffect(() => {
+    api.get('/ledgers/accounts').then(({ data }) => {
+      if (data?.success) {
+        setBankAccounts((data.accounts || []).filter(a => a.account_type === 'bank' && a.is_active != 0));
+      }
+    }).catch(() => {});
+  }, []);
   const [returnForm, setReturnForm] = useState({
     amount: '',
     return_date: format(new Date(), 'yyyy-MM-dd'),
@@ -119,6 +128,7 @@ export default function InvoiceDetail() {
       amount: amount !== '' ? String(amount) : '',
       payment_date: format(new Date(), 'yyyy-MM-dd'),
       payment_mode: 'cash',
+      account_id: bankAccounts[0]?.id || '',
       reference_no: '',
       notes: '',
       idempotency_key: generateIdempotencyKey(),
@@ -284,12 +294,40 @@ export default function InvoiceDetail() {
           <button onClick={openReturnModal} className="btn-secondary flex items-center gap-1.5 text-sm text-orange-700 border-orange-200 hover:bg-orange-50">
             <RotateCcw className="w-4 h-4" /> Goods Return
           </button>
+          <Link to="/eway-bills" className="btn-secondary flex items-center gap-1.5 text-sm text-purple-700 border-purple-200 hover:bg-purple-50 dark:text-purple-300 dark:border-purple-800">
+            <Truck className="w-4 h-4" /> E-Way Bill
+          </Link>
           <button onClick={handleWhatsApp} className="btn-secondary flex items-center gap-1.5 text-sm text-green-700 border-green-200 hover:bg-green-50">
             <Share2 className="w-4 h-4" /> WhatsApp
           </button>
           <button onClick={handlePrint} className="btn-secondary flex items-center gap-1.5 text-sm">
             <Printer className="w-4 h-4" /> Print
           </button>
+          <div className="relative inline-block">
+            <select
+              onChange={(e) => {
+                if (e.target.value) {
+                  const apiBase = api.defaults.baseURL || '/api';
+                  if (e.target.value === 'pos') {
+                    window.open(`${apiBase}/pdf/thermal-pos/${id}`, '_blank');
+                  } else {
+                    window.open(`${apiBase}/pdf/invoice-theme/${id}?theme=${e.target.value}`, '_blank');
+                  }
+                  e.target.value = '';
+                }
+              }}
+              defaultValue=""
+              className="btn-secondary text-sm py-1.5 px-2.5 font-medium cursor-pointer"
+              title="Print invoice with different theme templates"
+            >
+              <option value="" disabled>Print Theme...</option>
+              <option value="classic">Standard Classic</option>
+              <option value="modern">Modern Minimal</option>
+              <option value="corporate">Corporate Blue</option>
+              <option value="pharma">Pharma / Medical</option>
+              <option value="pos">Thermal POS (80mm)</option>
+            </select>
+          </div>
           <Link to={`/invoices/${id}/edit`} className="btn-secondary flex items-center gap-1.5 text-sm">
             <Edit className="w-4 h-4" /> Edit
           </Link>
@@ -514,8 +552,18 @@ export default function InvoiceDetail() {
                   <td className="table-cell" style={{color:'var(--text-3)'}}>{p.reference_no || '-'}</td>
                   <td className="table-cell text-right font-semibold text-green-600">₹{fmt(p.amount)}</td>
                   <td className="table-cell text-center">
+                    <button
+                      onClick={() => {
+                        const apiBase = api.defaults.baseURL || '/api';
+                        window.open(`${apiBase}/pdf/payment-receipt/${p.id}`, '_blank');
+                      }}
+                      className="text-blue-500 hover:text-blue-700 p-1 mr-2"
+                      title="Print Payment Receipt"
+                    >
+                      <Printer className="w-3.5 h-3.5 inline" />
+                    </button>
                     <button onClick={() => deletePayment(p.id)} className="text-red-400 hover:text-red-600">
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-3.5 h-3.5 inline" />
                     </button>
                   </td>
                 </tr>
@@ -669,6 +717,31 @@ export default function InvoiceDetail() {
                   </select>
                 </div>
               </div>
+              {payForm.payment_mode === 'cash' ? (
+                <div className="text-xs text-emerald-800 bg-emerald-50 p-2.5 rounded-lg border border-emerald-200 flex items-center gap-2">
+                  <span>💵 <strong>Khata:</strong> Cash in Hand (Galla / Rokad)</span>
+                </div>
+              ) : (
+                <div>
+                  <label className="label">Deposit To Bank Account</label>
+                  {bankAccounts.length <= 1 ? (
+                    <div className="text-xs text-blue-800 bg-blue-50 p-2.5 rounded-lg border border-blue-200 flex items-center justify-between">
+                      <span>🏦 <strong>Bank:</strong> {bankAccounts[0]?.name || 'Primary Bank Account'}</span>
+                      {bankAccounts[0]?.account_no && <span className="font-mono text-gray-600">A/C: {bankAccounts[0].account_no}</span>}
+                    </div>
+                  ) : (
+                    <select
+                      className="input-field"
+                      value={payForm.account_id || bankAccounts[0]?.id}
+                      onChange={(e) => setPayForm(p => ({ ...p, account_id: e.target.value }))}
+                    >
+                      {bankAccounts.map(b => (
+                        <option key={b.id} value={b.id}>{b.name} {b.account_no ? `(A/C: ${b.account_no})` : ''}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
               <div>
                 <label className="label">Reference No. (optional)</label>
                 <input type="text" className="input-field" value={payForm.reference_no}

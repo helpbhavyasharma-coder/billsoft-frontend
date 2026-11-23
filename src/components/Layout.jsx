@@ -5,19 +5,39 @@ import { useTheme } from '../context/ThemeContext';
 import {
   LayoutDashboard, FileText, Users, Package, Settings,
   LogOut, Menu, X, Building2, Plus, AlertCircle, Sun, Moon,
-  BarChart2, ShieldCheck, ShoppingCart, Wallet, Sparkles
+  BarChart2, ShieldCheck, ShoppingCart, Wallet, Sparkles,
+  FileSpreadsheet, ClipboardList, RotateCcw, RotateCw,
+  TrendingDown, TrendingUp, Scale, ArrowLeftRight, Clock, Barcode,
+  Repeat, Truck, BookOpen
 } from 'lucide-react';
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/ai/training', label: 'Invoice with AI', icon: Sparkles },
   { path: '/invoices', label: 'Invoices', icon: FileText },
+  { path: '/recurring-invoices', label: 'Recurring Billing', icon: Repeat },
+  { path: '/eway-bills', label: 'E-Way Bills', icon: Truck },
+  { path: '/quotations', label: 'Quotations', icon: FileSpreadsheet },
+  { path: '/credit-notes', label: 'Credit Notes', icon: RotateCcw },
   { path: '/outstanding', label: 'Outstanding', icon: AlertCircle },
   { path: '/parties', label: 'Parties', icon: Users },
   { path: '/products', label: 'Products', icon: Package },
+  { path: '/purchase-orders', label: 'Purchase Orders', icon: ClipboardList },
   { path: '/purchases', label: 'Purchases', icon: ShoppingCart },
+  { path: '/debit-notes', label: 'Debit Notes', icon: RotateCw },
   { path: '/stock', label: 'Stock', icon: Package },
+  { path: '/warehouses', label: 'Godowns', icon: Building2 },
+  { path: '/stock-transfers', label: 'Stock Transfers', icon: ArrowLeftRight },
+  { path: '/reports/stock-ageing', label: 'Stock Ageing', icon: Clock },
+  { path: '/barcodes', label: 'Barcode Print', icon: Barcode },
   { path: '/ledgers', label: 'Bank/Cash Ledger', icon: Wallet },
+  { path: '/bank-reconciliation', label: 'Bank BRS', icon: Scale },
+  { path: '/journal-vouchers', label: 'Journal Vouchers', icon: BookOpen },
+  { path: '/expenses', label: 'Expenses', icon: TrendingDown },
+  { path: '/reports/gst', label: 'GST Returns (GSTR)', icon: ShieldCheck },
+  { path: '/reports/trial-balance', label: 'Trial Balance', icon: Scale },
+  { path: '/reports/profit-and-loss', label: 'P&L Statement', icon: TrendingUp },
+  { path: '/reports/balance-sheet', label: 'Balance Sheet', icon: Scale },
   { path: '/reports/accountant', label: 'Accountant Report', icon: BarChart2 },
   { path: '/company', label: 'Company', icon: Building2 },
   { path: '/settings', label: 'Settings', icon: Settings },
@@ -45,7 +65,7 @@ export default function Layout({ children }) {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'var(--bg)', color: 'var(--text)' }}>
+    <div className="flex h-screen h-[100dvh] max-h-[100dvh] w-full overflow-hidden select-none sm:select-auto" style={{ backgroundColor: 'var(--bg)', color: 'var(--text)' }}>
 
       {/* ── Sidebar ── */}
       <aside
@@ -148,8 +168,8 @@ export default function Layout({ children }) {
 
       {/* ── Main Content ── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Top bar */}
-        <header className="h-14 flex items-center px-4 gap-3 flex-shrink-0" style={headerStyle}>
+        {/* Top bar (Always sticky, never slips under browser URL bar) */}
+        <header className="h-14 min-h-[3.5rem] flex items-center px-4 gap-3 flex-shrink-0 sticky top-0 z-30 shadow-sm" style={headerStyle}>
           <button onClick={() => setSidebarOpen(true)} className="lg:hidden" style={{ color: 'var(--text-3)' }}>
             <Menu className="w-5 h-5" />
           </button>
@@ -175,8 +195,10 @@ export default function Layout({ children }) {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6" style={{ backgroundColor: 'var(--bg)' }}>
+        <main className="flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4 lg:p-6 pb-20 sm:pb-24 lg:pb-8" style={{ backgroundColor: 'var(--bg)', overscrollBehavior: 'contain' }}>
           {children}
+          {/* Safe buffer space matching/exceeding heading height so bottom is never obscured */}
+          <div className="h-16 sm:h-10 w-full flex-shrink-0 pointer-events-none" aria-hidden="true" />
         </main>
       </div>
     </div>

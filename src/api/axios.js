@@ -4,17 +4,16 @@ import axios from 'axios';
 const DEFAULT_PUBLIC_API = '/BhaviSoft/billing-software/php-backend';
 
 const runtimeOrigin =
-  typeof window !== 'undefined' && window.__BILLING_API_ORIGIN__
+  typeof window !== 'undefined' && window.__BILLING_API_ORIGIN__ !== undefined
     ? String(window.__BILLING_API_ORIGIN__).trim()
-    : '';
+    : null;
 const envOrigin = (import.meta.env.VITE_API_URL || '').trim();
 
-// `npm run dev` only: relative `/api` + vite.config.js proxy → localhost:5000.
-// `npm run build` output: always absolute backend URL (never softbill.bhauu.online/api — wahan server nahi).
+// Production default is same-origin `/api` (or configured via window.__BILLING_API_ORIGIN__).
 const apiOrigin =
-  runtimeOrigin ||
-  envOrigin ||
-  (import.meta.env.DEV ? '' : DEFAULT_PUBLIC_API);
+  runtimeOrigin !== null
+    ? runtimeOrigin
+    : (envOrigin || (import.meta.env.DEV ? '' : '/api'));
 
 const normalizedOrigin = apiOrigin.replace(/\/$/, '');
 const BASE_URL = normalizedOrigin
@@ -34,7 +33,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401: expired/invalid session -> public landing. Do NOT redirect on wrong password.
+// Handle 401: expired/invalid session. Notify React AuthContext gracefully instead of hard browser reload.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -43,8 +42,24 @@ api.interceptors.response.use(
       if (/auth\/(login|register|bhauu\/exchange)/.test(reqPath)) {
         return Promise.reject(error);
       }
-      localStorage.removeItem('token');
-      window.location.href = '/';
+      const errorCode = error.response?.data?.error_code || 'SESSION_EXPIRED';
+      const canRenew = Boolean(error.response?.data?.can_renew);
+      if (errorCode === 'SESSION_REVOKED') {
+        localStorage.removeItem('token');
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('billsoft:session-expired', {
+            detail: {
+              path: reqPath,
+              status: 401,
+              message: error.response?.data?.message || 'Session expired. Please login again.',
+              errorCode,
+              canRenew,
+            },
+          })
+        );
+      }
     }
     return Promise.reject(error);
   }

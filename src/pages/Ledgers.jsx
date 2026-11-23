@@ -137,6 +137,18 @@ export default function Ledgers() {
     }
   };
 
+  const deleteEntry = async (entry) => {
+    if (!window.confirm(`Delete entry of ₹${fmt(entry.amount)} (${entry.description || 'Ledger entry'})?`)) return;
+    try {
+      await api.delete(`/ledgers/entries/${entry.id}`);
+      toast.success('Entry deleted.');
+      fetchAccounts();
+      if (selected?.id) fetchEntries(selected.id);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete entry.');
+    }
+  };
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -314,6 +326,7 @@ export default function Ledgers() {
                       <th className="table-header text-left">Ref</th>
                       <th className="table-header text-right">Credit</th>
                       <th className="table-header text-right">Debit</th>
+                      <th className="table-header text-center w-12">Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -324,6 +337,11 @@ export default function Ledgers() {
                         <td className="table-cell">{entry.reference_no || '-'}</td>
                         <td className="table-cell text-right text-green-600 font-medium">{entry.entry_type === 'credit' ? `₹${fmt(entry.amount)}` : '-'}</td>
                         <td className="table-cell text-right text-red-600 font-medium">{entry.entry_type === 'debit' ? `₹${fmt(entry.amount)}` : '-'}</td>
+                        <td className="table-cell text-center">
+                          <button onClick={() => deleteEntry(entry)} className="p-1 text-red-400 hover:text-red-600 rounded transition-colors" title="Delete entry">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -352,9 +370,14 @@ export default function Ledgers() {
                             <p className="mt-1 text-xs" style={{color:'var(--text-3)'}}>Ref: {entry.reference_no}</p>
                           )}
                         </div>
-                        <p className={`whitespace-nowrap text-sm font-black ${isCredit ? 'text-green-600' : 'text-red-600'}`}>
-                          {isCredit ? '+' : '-'}₹{fmt(entry.amount)}
-                        </p>
+                        <div className="flex flex-col items-end gap-1">
+                          <p className={`whitespace-nowrap text-sm font-black ${isCredit ? 'text-green-600' : 'text-red-600'}`}>
+                            {isCredit ? '+' : '-'}₹{fmt(entry.amount)}
+                          </p>
+                          <button onClick={() => deleteEntry(entry)} className="text-red-400 hover:text-red-600 p-1" title="Delete entry">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );

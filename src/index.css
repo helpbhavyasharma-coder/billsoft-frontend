@@ -58,13 +58,25 @@ html.dark {
   --badge-paid-text:   #86efac;
 }
 
-/* ── Base ── */
+/* ── Base & Viewport Lock ── */
+html, body, #root {
+  height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
+}
+
 body {
   background-color: var(--bg);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   transition: background-color 0.2s, color 0.2s;
+  overscroll-behavior-y: none;
+  position: relative;
 }
 
 button, input, select, textarea, a {

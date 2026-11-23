@@ -47,18 +47,26 @@ function popupResultKey(state) {
   return `bhauu_auth_popup_result_${state || 'unknown'}`;
 }
 
+function popupPendingKey(state) {
+  return `bhauu_auth_pending_${state || 'unknown'}`;
+}
+
 function notifyPopupStorage(payload) {
   if (!payload?.state) return false;
   localStorage.setItem(popupResultKey(payload.state), JSON.stringify({ ...payload, createdAt: Date.now() }));
-  window.setTimeout(() => window.close(), 80);
+  localStorage.removeItem(popupPendingKey(payload.state));
+  window.setTimeout(() => {
+    try { window.close(); } catch (e) {}
+  }, 600);
   return true;
 }
 
 function notifyPopupOpener(payload) {
   if (!isPopupWindow()) return false;
-  window.opener.postMessage({ source: 'bhauu-auth', ...payload }, window.location.origin);
+  try {
+    window.opener.postMessage({ source: 'bhauu-auth', ...payload }, window.location.origin);
+  } catch (e) {}
   notifyPopupStorage(payload);
-  window.setTimeout(() => window.close(), 50);
   return true;
 }
 
@@ -89,12 +97,19 @@ export default function AuthCallback() {
     const expectedState = sessionStorage.getItem('bhauu_auth_state');
     const rememberedStates = readRememberedStates();
     const stateIsKnown = state && (state === expectedState || rememberedStates.includes(state));
-    const hasLocalPopupState = Boolean(expectedState || rememberedStates.length);
+    const hasPendingPopup = Boolean(state && localStorage.getItem(popupPendingKey(state)));
+    const isPopupFlow = hasPendingPopup || isPopupWindow() || isBhauuAuthNamedWindow();
 
-    if ((code || error) && state && (!hasLocalPopupState || isPopupWindow() || isBhauuAuthNamedWindow())) {
+    if ((code || error) && state && isPopupFlow) {
       const payload = { code, state, error: error || errorDescription || null };
       if (!notifyPopupOpener(payload)) notifyPopupStorage(payload);
-      setMessage('Opening BillSoft...');
+      if (payload.error) {
+        setStatus('error');
+        setMessage(payload.error);
+      } else {
+        setStatus('success');
+        setMessage('Bhauu Auth verified. Returning to BillSoft...');
+      }
       return;
     }
 
@@ -185,11 +200,19 @@ export default function AuthCallback() {
             {isError ? 'Login Could Not Complete' : status === 'success' ? 'Login Complete' : 'Signing You In'}
           </h2>
           <p className="mt-2 text-sm" style={{ color: 'var(--text-3)' }}>{message}</p>
-          {isError && (
+          {isError ? (
             <Link to="/" className="btn-primary mt-5 w-full">
               Back to Home
             </Link>
-          )}
+          ) : status === 'success' ? (
+            <button
+              type="button"
+              onClick={() => { try { window.close(); } catch (e) {} }}
+              className="btn-secondary mt-5 w-full text-sm"
+            >
+              Close Window
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

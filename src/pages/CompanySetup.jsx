@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
@@ -38,7 +38,9 @@ export default function CompanySetup() {
   const handleLogo = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { toast.error('Logo must be under 2MB'); return; }
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (file.type && !allowedTypes.includes(file.type)) { toast.error('Only JPEG, PNG, and WebP images are allowed.'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error('Logo must be under 5MB'); return; }
     setLogoFile(file);
     setLogoPreview(URL.createObjectURL(file));
   };
@@ -147,8 +149,8 @@ export default function CompanySetup() {
                     Remove
                   </button>
                 )}
-                <p className="text-xs mt-1" style={{color:"var(--text-3)"}}>PNG, JPG up to 2MB</p>
-                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogo} />
+                <p className="text-xs mt-1" style={{color:"var(--text-3)"}}>PNG, JPG, WebP up to 5MB</p>
+                <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleLogo} />
               </div>
             </div>
           </div>

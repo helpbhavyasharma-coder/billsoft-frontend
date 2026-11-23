@@ -748,7 +748,7 @@ export default function AiTraining() {
       notesText = `Weight note: ${vatMatch[0]}`;
     }
     if (isCashIntent) {
-      notesText = notesText ? `${notesText}; Cash sale intent (payment receipt pending)` : 'Cash sale intent (payment receipt pending)';
+      notesText = notesText ? `${notesText}; Cash Sale (Counter)` : 'Cash Sale (Counter)';
     }
 
     // Fetch next invoice number
@@ -3025,8 +3025,8 @@ export default function AiTraining() {
                   className="p-3 rounded-lg border flex items-start gap-2 bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800"
                 >
                   <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                  <div className="text-amber-800 dark:text-amber-200 text-xs">
-                    <strong>Cash Sale Intent Detected:</strong> Order mentioned &quot;Cash ka bill&quot;. In accordance with BillSoft business rules, receivables remain active until payment is explicitly recorded. No money is marked received automatically.
+                  <div className="text-emerald-800 dark:text-emerald-200 text-xs">
+                    <strong>Cash Sale:</strong> Order mentioned &quot;Cash ka bill&quot;. In accordance with business rules, this is treated as a counter Cash Sale and marked Paid automatically into Cash Ledger.
                   </div>
                 </div>
               )}

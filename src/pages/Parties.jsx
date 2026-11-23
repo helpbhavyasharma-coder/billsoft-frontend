@@ -148,7 +148,14 @@ export default function Parties() {
                       onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
                       onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                     >
-                      <td className="table-cell font-medium" style={{ color: 'var(--text)' }}>{party.name}</td>
+                      <td className="table-cell font-medium" style={{ color: 'var(--text)' }}>
+                        {party.name}
+                        {party.name && party.name.trim().toLowerCase() === 'cash' && (
+                          <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-semibold">
+                            Cash Sale
+                          </span>
+                        )}
+                      </td>
                       <td className="table-cell">
                         {party.mobile && <div className="flex items-center gap-1" style={{ color: 'var(--text-2)' }}><Phone className="w-3 h-3" /> {party.mobile}</div>}
                         {party.email && <div className="text-xs" style={{ color: 'var(--text-3)' }}>{party.email}</div>}

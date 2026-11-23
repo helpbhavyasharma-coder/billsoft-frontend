@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
-import { Eye, Pencil, Plus, ShoppingCart, Trash2, X } from 'lucide-react';
+import { Eye, Pencil, Plus, ShoppingCart, Trash2, X, AlertTriangle, CheckCircle, Ban } from 'lucide-react';
 import { EmptyState, LoadingState, Money, PageHeader, StatusBadge } from '../components/ui';
 
 const fmt = (n) => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -71,14 +72,21 @@ export default function Purchases() {
   const [editingId, setEditingId] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [statusFilter, setStatusFilter] = useState('active');
 
-  useEffect(() => { fetchData(); }, []);
+  // Cancellation modal state
+  const [cancellingPurchase, setCancellingPurchase] = useState(null);
+  const [cancelReason, setCancelReason] = useState('Cancelled by operator');
+  const [confirmPaymentReversal, setConfirmPaymentReversal] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
+
+  useEffect(() => { fetchData(); }, [statusFilter]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const [purchaseRes, productRes, partyRes] = await Promise.all([
-        api.get('/purchases'),
+        api.get(`/purchases?status=${statusFilter}`),
         api.get('/products'),
         api.get('/parties'),
       ]);
@@ -232,16 +240,30 @@ export default function Purchases() {
     }
   };
 
-  const deletePurchase = async (purchase) => {
-    const ok = window.confirm(`Cancel purchase bill ${purchase.bill_no || `#${purchase.id}`}? Stock and ledger entries from this bill will be reversed.`);
-    if (!ok) return;
+  const openCancelModal = (purchase) => {
+    setCancellingPurchase(purchase);
+    setCancelReason('Cancelled by operator');
+    setConfirmPaymentReversal(true);
+  };
 
+  const handleCancelSubmit = async (e) => {
+    e.preventDefault();
+    if (!cancellingPurchase) return;
+    setCancelling(true);
     try {
-      await api.delete(`/purchases/${purchase.id}`);
-      toast.success('Purchase bill cancelled.');
-      fetchData();
+      const { data: res } = await api.post(`/purchases/${cancellingPurchase.id}/cancel`, {
+        reason: cancelReason,
+        reverse_payment: confirmPaymentReversal,
+      });
+      if (res.success) {
+        toast.success(res.message || 'Purchase bill cancelled. Stock and payables reversed.');
+        setCancellingPurchase(null);
+        fetchData();
+      }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to delete purchase bill.');
+      toast.error(err.response?.data?.message || 'Failed to cancel purchase bill.');
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -489,12 +511,36 @@ export default function Purchases() {
         </form>
       )}
 
+      {/* Filter Tabs */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex gap-1 p-1 rounded-xl w-fit" style={{ backgroundColor: 'var(--bg-muted)', border: '1px solid var(--border)' }}>
+          {[
+            { id: 'active', label: 'Active Bills' },
+            { id: 'cancelled', label: 'Cancelled Bills' },
+            { id: 'all', label: 'All Bills' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setStatusFilter(tab.id)}
+              className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
+              style={
+                statusFilter === tab.id
+                  ? { backgroundColor: 'var(--bg-card)', color: 'var(--text)', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }
+                  : { color: 'var(--text-3)' }
+              }
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="card p-0 overflow-hidden">
         {loading ? <LoadingState label="Loading purchase bills..." /> : purchases.length === 0 ? (
           <EmptyState
             icon={ShoppingCart}
-            title="No purchase bills found"
-            description="Create a purchase bill to update supplier payable and stock history."
+            title={statusFilter === 'cancelled' ? 'No cancelled purchase bills' : 'No purchase bills found'}
+            description={statusFilter === 'cancelled' ? 'No cancelled purchase bills in this company.' : 'Create a purchase bill to update supplier payable and stock history.'}
           />
         ) : (
           <>
@@ -513,61 +559,202 @@ export default function Purchases() {
                 </tr>
               </thead>
               <tbody>
-                {purchases.map((purchase) => (
-                  <tr key={purchase.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td className="table-cell">{String(purchase.purchase_date || '').slice(0, 10)}</td>
-                    <td className="table-cell">{purchase.bill_no || '-'}</td>
-                    <td className="table-cell">{purchase.supplier_name || '-'}</td>
-                    <td className="table-cell text-right font-bold">₹{fmt(purchase.grand_total)}</td>
-                    <td className="table-cell text-right text-green-600 font-medium">₹{fmt(purchase.amount_paid)}</td>
-                    <td className="table-cell text-right text-red-600 font-medium">₹{fmt(purchase.payable)}</td>
-                    <td className="table-cell text-center"><StatusBadge status={purchase.payment_status} /></td>
-                    <td className="table-cell">
-                      <div className="flex items-center justify-center gap-2">
-                        <button title="View" onClick={() => loadPurchase(purchase.id, 'view')} className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50"><Eye className="w-4 h-4" /></button>
-                        <button title="Edit" onClick={() => loadPurchase(purchase.id, 'edit')} className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50"><Pencil className="w-4 h-4" /></button>
-                        <button title="Cancel" onClick={() => deletePurchase(purchase)} className="p-1.5 rounded-lg text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4" /></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {purchases.map((purchase) => {
+                  const isCancelled = purchase.status === 'cancelled';
+                  return (
+                    <tr key={purchase.id} style={{ borderBottom: '1px solid var(--border)' }} className={isCancelled ? 'opacity-70 bg-red-50/20' : ''}>
+                      <td className="table-cell">{String(purchase.purchase_date || '').slice(0, 10)}</td>
+                      <td className={`table-cell font-medium ${isCancelled ? 'line-through text-gray-400' : ''}`}>
+                        {purchase.bill_no || `#${purchase.id}`}
+                      </td>
+                      <td className="table-cell">
+                        {purchase.supplier_id ? (
+                          <Link to={`/parties/${purchase.supplier_id}/ledger`} className="text-blue-600 hover:underline font-medium">
+                            {purchase.supplier_name || `Supplier #${purchase.supplier_id}`}
+                          </Link>
+                        ) : (
+                          purchase.supplier_name || '-'
+                        )}
+                      </td>
+                      <td className="table-cell text-right font-bold">₹{fmt(purchase.grand_total)}</td>
+                      <td className="table-cell text-right text-green-600 font-medium">₹{fmt(purchase.amount_paid)}</td>
+                      <td className="table-cell text-right text-red-600 font-medium">
+                        {isCancelled ? '₹0.00' : `₹${fmt(purchase.payable)}`}
+                      </td>
+                      <td className="table-cell text-center">
+                        {isCancelled ? (
+                          <span className="badge badge-danger">Cancelled</span>
+                        ) : (
+                          <StatusBadge status={purchase.payment_status} />
+                        )}
+                      </td>
+                      <td className="table-cell">
+                        <div className="flex items-center justify-center gap-2">
+                          <button title="View" onClick={() => loadPurchase(purchase.id, 'view')} className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50">
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          {!isCancelled && (
+                            <>
+                              <button title="Edit" onClick={() => loadPurchase(purchase.id, 'edit')} className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50">
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button title="Cancel Purchase" onClick={() => openCancelModal(purchase)} className="p-1.5 rounded-lg text-red-600 hover:bg-red-50">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
           <div className="md:hidden p-3 space-y-2">
-            {purchases.map((purchase) => (
-              <div key={purchase.id} className="mobile-card">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="min-w-0">
-                    <p className="font-bold truncate" style={{ color: 'var(--text)' }}>{purchase.bill_no || `#${purchase.id}`}</p>
-                    <p className="text-xs truncate" style={{ color: 'var(--text-3)' }}>{purchase.supplier_name || 'No supplier'} | {String(purchase.purchase_date || '').slice(0, 10)}</p>
+            {purchases.map((purchase) => {
+              const isCancelled = purchase.status === 'cancelled';
+              return (
+                <div key={purchase.id} className={`mobile-card ${isCancelled ? 'opacity-75 bg-red-50/20' : ''}`}>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="min-w-0">
+                      <p className={`font-bold truncate ${isCancelled ? 'line-through text-gray-500' : ''}`} style={{ color: 'var(--text)' }}>
+                        {purchase.bill_no || `#${purchase.id}`}
+                      </p>
+                      <p className="text-xs truncate" style={{ color: 'var(--text-3)' }}>
+                        {purchase.supplier_id ? (
+                          <Link to={`/parties/${purchase.supplier_id}/ledger`} className="text-blue-600 hover:underline">
+                            {purchase.supplier_name || 'No supplier'}
+                          </Link>
+                        ) : (
+                          purchase.supplier_name || 'No supplier'
+                        )} | {String(purchase.purchase_date || '').slice(0, 10)}
+                      </p>
+                    </div>
+                    {isCancelled ? <span className="badge badge-danger">Cancelled</span> : <StatusBadge status={purchase.payment_status} />}
                   </div>
-                  <StatusBadge status={purchase.payment_status} />
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    <div className="stat-box"><p>Amount</p><span><Money value={purchase.grand_total} /></span></div>
+                    <div className="stat-box" style={{ backgroundColor: 'rgba(220,38,38,0.08)', borderColor: 'rgba(220,38,38,0.2)' }}><p>Paid</p><span className="text-green-600"><Money value={purchase.amount_paid} /></span></div>
+                    <div className="stat-box" style={{ backgroundColor: 'rgba(220,38,38,0.08)', borderColor: 'rgba(220,38,38,0.2)' }}><p>Payable</p><span className="text-red-600"><Money value={isCancelled ? 0 : purchase.payable} /></span></div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => loadPurchase(purchase.id, 'view')} className="btn-secondary text-xs py-2 flex-1"><Eye className="w-4 h-4" /> View</button>
+                    {!isCancelled && (
+                      <>
+                        <button type="button" onClick={() => loadPurchase(purchase.id, 'edit')} className="btn-secondary text-xs py-2 flex-1"><Pencil className="w-4 h-4" /> Edit</button>
+                        <button type="button" onClick={() => openCancelModal(purchase)} className="btn-secondary text-xs py-2 text-red-600 flex-1"><Trash2 className="w-4 h-4" /> Cancel</button>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <div className="grid grid-cols-3 gap-2 mb-3">
-                  <div className="stat-box"><p>Amount</p><span><Money value={purchase.grand_total} /></span></div>
-                  <div className="stat-box" style={{ backgroundColor: 'rgba(22,163,74,0.08)', borderColor: 'rgba(22,163,74,0.2)' }}><p>Paid</p><span className="text-green-600"><Money value={purchase.amount_paid} /></span></div>
-                  <div className="stat-box" style={{ backgroundColor: 'rgba(220,38,38,0.08)', borderColor: 'rgba(220,38,38,0.2)' }}><p>Payable</p><span className="text-red-600"><Money value={purchase.payable} /></span></div>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <button type="button" onClick={() => loadPurchase(purchase.id, 'view')} className="btn-secondary text-xs py-2"><Eye className="w-4 h-4" /> View</button>
-                  <button type="button" onClick={() => loadPurchase(purchase.id, 'edit')} className="btn-secondary text-xs py-2"><Pencil className="w-4 h-4" /> Edit</button>
-                  <button type="button" onClick={() => deletePurchase(purchase)} className="btn-secondary text-xs py-2 text-red-600"><Trash2 className="w-4 h-4" /> Cancel</button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           </>
         )}
       </div>
 
+      {/* Cancel Purchase Modal */}
+      {cancellingPurchase && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4" style={{ backgroundColor: 'var(--bg-card)' }}>
+            <div className="flex items-center justify-between pb-3" style={{ borderBottom: '1px solid var(--border)' }}>
+              <div className="flex items-center gap-2 text-red-600 font-bold text-lg">
+                <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                <span>Cancel Purchase Bill</span>
+              </div>
+              <button onClick={() => setCancellingPurchase(null)} className="p-1 rounded-lg" style={{ color: 'var(--text-3)' }}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="rounded-xl p-3 text-sm space-y-1.5" style={{ backgroundColor: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+              <div className="flex justify-between">
+                <span style={{ color: 'var(--text-3)' }}>Bill No:</span>
+                <span className="font-semibold">{cancellingPurchase.bill_no || `#${cancellingPurchase.id}`}</span>
+              </div>
+              <div className="flex justify-between">
+                <span style={{ color: 'var(--text-3)' }}>Supplier:</span>
+                <span className="font-semibold">{cancellingPurchase.supplier_name || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span style={{ color: 'var(--text-3)' }}>Total Amount:</span>
+                <span className="font-bold text-red-600">₹{fmt(cancellingPurchase.grand_total)}</span>
+              </div>
+              {parseFloat(cancellingPurchase.amount_paid || 0) > 0 && (
+                <div className="flex justify-between text-amber-700">
+                  <span>Amount Paid:</span>
+                  <span className="font-bold">₹{fmt(cancellingPurchase.amount_paid)}</span>
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs" style={{ color: 'var(--text-3)' }}>
+              Stock received from this purchase will be verified and safely reversed. If items have already been sold, cancellation will be blocked to maintain inventory integrity.
+            </p>
+
+            <form onSubmit={handleCancelSubmit} className="space-y-4">
+              <div>
+                <label className="label">Cancellation Reason *</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="e.g. Returned to supplier, bill error..."
+                  required
+                  autoFocus
+                />
+              </div>
+
+              {parseFloat(cancellingPurchase.amount_paid || 0) > 0 && (
+                <label className="flex items-center gap-2 text-xs cursor-pointer p-2 rounded-lg bg-amber-50 border border-amber-200">
+                  <input
+                    type="checkbox"
+                    checked={confirmPaymentReversal}
+                    onChange={(e) => setConfirmPaymentReversal(e.target.checked)}
+                    className="rounded text-red-600"
+                  />
+                  <span className="text-amber-800">
+                    Confirm reversal/refund of recorded payment ₹{fmt(cancellingPurchase.amount_paid)}
+                  </span>
+                </label>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setCancellingPurchase(null)} className="btn-secondary flex-1">
+                  Keep Bill
+                </button>
+                <button type="submit" disabled={cancelling} className="btn-danger flex-1 flex items-center justify-center gap-2">
+                  <Ban className="w-4 h-4" />
+                  {cancelling ? 'Cancelling...' : 'Confirm Cancellation'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Purchase Modal */}
       {viewing && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div className="card w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>
-                <h2 className="text-lg font-bold" style={{ color: 'var(--text)' }}>Purchase Bill {viewing.bill_no || `#${viewing.id}`}</h2>
-                <p className="text-sm" style={{ color: 'var(--text-3)' }}>{String(viewing.purchase_date || '').slice(0, 10)} - {viewing.supplier_name || 'No supplier'}</p>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-bold" style={{ color: 'var(--text)' }}>Purchase Bill {viewing.bill_no || `#${viewing.id}`}</h2>
+                  {viewing.status === 'cancelled' && <span className="badge badge-danger">Cancelled</span>}
+                </div>
+                <p className="text-sm" style={{ color: 'var(--text-3)' }}>
+                  {String(viewing.purchase_date || '').slice(0, 10)} - {viewing.supplier_name || 'No supplier'}
+                </p>
+                {viewing.status === 'cancelled' && (
+                  <div className="mt-2 text-xs p-2 rounded-lg bg-red-50 text-red-700 border border-red-200">
+                    <p className="font-semibold">Cancelled on: {viewing.cancelled_at ? String(viewing.cancelled_at) : 'Historical'}</p>
+                    <p>Reason: {viewing.cancellation_reason || 'Not specified'}</p>
+                  </div>
+                )}
               </div>
               <button onClick={() => setViewing(null)} className="p-1 rounded-lg" style={{ color: 'var(--text-3)' }}>
                 <X className="w-5 h-5" />
@@ -592,7 +779,7 @@ export default function Purchases() {
                     <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
                       <td className="table-cell">{item.product_name || '-'}</td>
                       <td className="table-cell text-right">{item.qty}</td>
-                      <td className="table-cell text-right">{item.accepted_qty}</td>
+                      <td className="table-cell text-right font-medium">{item.accepted_qty}</td>
                       <td className="table-cell text-right">{item.damaged_qty}</td>
                       <td className="table-cell text-right">{item.expired_qty}</td>
                       <td className="table-cell text-right">₹{fmt(item.rate)}</td>
@@ -607,6 +794,8 @@ export default function Purchases() {
               <p>Taxable: ₹{fmt(viewing.subtotal)} | GST: ₹{fmt(viewing.total_gst)}</p>
               <p>Round Off: ₹{fmt(viewing.round_off)}</p>
               <p className="text-lg font-bold">Grand Total: ₹{fmt(viewing.grand_total)}</p>
+              <p className="text-green-600 font-medium">Amount Paid: ₹{fmt(viewing.amount_paid)}</p>
+              <p className="text-red-600 font-bold">Payable: ₹{fmt(viewing.status === 'cancelled' ? 0 : viewing.payable)}</p>
             </div>
           </div>
         </div>

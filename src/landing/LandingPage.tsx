@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import hotToast from 'react-hot-toast';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { getApiErrorMessage } from '../utils/apiError';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { Features } from './components/Features';
@@ -67,6 +68,10 @@ function createAuthState() {
 
 function popupResultKey(state: string) {
   return `bhauu_auth_popup_result_${state}`;
+}
+
+function pendingPopupKey(state: string) {
+  return `bhauu_auth_pending_${state}`;
 }
 
 function loadBhauuAuthSdk() {
@@ -216,6 +221,11 @@ export default function LandingPage() {
       sessionStorage.setItem('bhauu_auth_state', state);
       sessionStorage.setItem('bhauu_auth_states', JSON.stringify(nextStates));
       sessionStorage.setItem('bhauu_auth_code_verifier', codeVerifier);
+
+      const storageKey = popupResultKey(state);
+      const pendingKey = pendingPopupKey(state);
+      localStorage.setItem(pendingKey, JSON.stringify({ state, codeVerifier, createdAt: Date.now() }));
+
       const result = await new Promise<{ code?: string; state?: string; codeVerifier?: string }>((resolve, reject) => {
         let timeoutId = 0;
         let popupCheckId = 0;
@@ -223,13 +233,25 @@ export default function LandingPage() {
         let popupCloseGraceId = 0;
         let popupClosedSeen = false;
         let popupCompleted = false;
-        const storageKey = popupResultKey(state);
+        let exchangeInProgress = false;
+
+        const cleanup = () => {
+          window.removeEventListener('message', handleMessage);
+          window.removeEventListener('storage', handleStorage);
+          window.clearTimeout(timeoutId);
+          window.clearTimeout(popupCloseGraceId);
+          window.clearInterval(popupCheckId);
+          window.clearInterval(storageCheckId);
+        };
+
         const finishFromPayload = (payload: { code?: string; state?: string; error?: string | null }) => {
-          if (payload.state !== state) return false;
+          if (payload.state !== state || popupCompleted) return false;
           popupCompleted = true;
           window.__bhauuPopupCompleted = true;
+          exchangeInProgress = true;
           cleanup();
           localStorage.removeItem(storageKey);
+          localStorage.removeItem(pendingKey);
           if (payload.error) {
             reject(new Error(String(payload.error)));
             return true;
@@ -237,6 +259,7 @@ export default function LandingPage() {
           resolve({ code: payload.code, state, codeVerifier });
           return true;
         };
+
         const readStoredResult = () => {
           const raw = localStorage.getItem(storageKey);
           if (!raw) return false;
@@ -247,14 +270,7 @@ export default function LandingPage() {
             return false;
           }
         };
-        const cleanup = () => {
-          window.removeEventListener('message', handleMessage);
-          window.removeEventListener('storage', handleStorage);
-          window.clearTimeout(timeoutId);
-          window.clearTimeout(popupCloseGraceId);
-          window.clearInterval(popupCheckId);
-          window.clearInterval(storageCheckId);
-        };
+
         const handleMessage = (event: MessageEvent) => {
           const data = event.data || {};
           const allowedOrigins = [BHAUU_AUTH_ORIGIN, window.location.origin];
@@ -262,6 +278,7 @@ export default function LandingPage() {
           if (!allowedOrigins.includes(event.origin) || !isBhauuPopupMessage || data.state !== state) return;
           finishFromPayload({ code: data.code, state: data.state, error: data.error });
         };
+
         const handleStorage = (event: StorageEvent) => {
           if (event.key !== storageKey || !event.newValue) return;
           try {
@@ -270,24 +287,32 @@ export default function LandingPage() {
             localStorage.removeItem(storageKey);
           }
         };
+
         window.addEventListener('message', handleMessage);
         window.addEventListener('storage', handleStorage);
+
         timeoutId = window.setTimeout(() => {
           cleanup();
+          localStorage.removeItem(pendingKey);
+          localStorage.removeItem(storageKey);
           reject(new Error('Bhauu Auth login timeout. Please try again.'));
         }, 180000);
+
         popupCheckId = window.setInterval(() => {
           if (readStoredResult()) return;
           if (popup.closed && !popupClosedSeen) {
             popupClosedSeen = true;
             popupCloseGraceId = window.setTimeout(() => {
-              if (popupCompleted || window.__bhauuPopupCompleted || readStoredResult()) return;
+              if (popupCompleted || window.__bhauuPopupCompleted || exchangeInProgress || readStoredResult()) return;
               cleanup();
+              localStorage.removeItem(pendingKey);
+              localStorage.removeItem(storageKey);
               reject(new Error('Login popup band ho gaya. Dobara Login dabayein.'));
-            }, 1200);
+            }, 1500);
           }
-        }, 700);
-        storageCheckId = window.setInterval(readStoredResult, 350);
+        }, 400);
+
+        storageCheckId = window.setInterval(readStoredResult, 250);
 
         window.BhauuAuth!.buildAuthorizeUrl({
           clientId: authConfig.clientId,
@@ -303,6 +328,8 @@ export default function LandingPage() {
           })
           .catch((error) => {
             cleanup();
+            localStorage.removeItem(pendingKey);
+            localStorage.removeItem(storageKey);
             reject(error);
           });
       });
@@ -314,12 +341,16 @@ export default function LandingPage() {
       const data = await completeBhauuLogin(result.code, result.state, result.codeVerifier);
       sessionStorage.removeItem('bhauu_auth_state');
       sessionStorage.removeItem('bhauu_auth_code_verifier');
+      localStorage.removeItem(pendingKey);
+      localStorage.removeItem(storageKey);
       hotToast.success('Bhauu Auth se login ho gaya');
       const target = data.isAdmin ? '/admin' : data.hasCompany ? '/dashboard' : '/company/setup';
       navigate(target, { replace: true });
     } catch (error) {
-      if (!popup.closed) popup.close();
-      const message = error instanceof Error ? error.message : 'Bhauu Auth login failed';
+      if (!popup.closed) {
+        try { popup.close(); } catch (e) {}
+      }
+      const message = getApiErrorMessage(error, error instanceof Error ? error.message : 'Bhauu Auth login failed');
       hotToast.error(message);
     } finally {
       setLoginBusy(false);

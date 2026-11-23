@@ -11,6 +11,18 @@ import CompanySetup from './pages/CompanySetup';
 import InvoiceList from './pages/InvoiceList';
 import InvoiceForm from './pages/InvoiceForm';
 import InvoiceDetail from './pages/InvoiceDetail';
+import Quotations from './pages/Quotations';
+import QuotationForm from './pages/QuotationForm';
+import QuotationDetail from './pages/QuotationDetail';
+import PurchaseOrders from './pages/PurchaseOrders';
+import PurchaseOrderForm from './pages/PurchaseOrderForm';
+import PurchaseOrderDetail from './pages/PurchaseOrderDetail';
+import CreditNotes from './pages/CreditNotes';
+import CreditNoteForm from './pages/CreditNoteForm';
+import CreditNoteDetail from './pages/CreditNoteDetail';
+import DebitNotes from './pages/DebitNotes';
+import DebitNoteForm from './pages/DebitNoteForm';
+import DebitNoteDetail from './pages/DebitNoteDetail';
 import Parties from './pages/Parties';
 import Products from './pages/Products';
 import Purchases from './pages/Purchases';
@@ -21,6 +33,21 @@ import PartyLedger from './pages/PartyLedger';
 import AdminPanel from './pages/AdminPanel';
 import AdminUserDetail from './pages/AdminUserDetail';
 import AccountantReport from './pages/AccountantReport';
+import Expenses from './pages/Expenses';
+import ProfitLossReport from './pages/ProfitLossReport';
+import BalanceSheetReport from './pages/BalanceSheetReport';
+import Warehouses from './pages/Warehouses';
+import StockTransfers from './pages/StockTransfers';
+import StockAgeing from './pages/StockAgeing';
+import BarcodeGenerator from './pages/BarcodeGenerator';
+import BankReconciliation from './pages/BankReconciliation';
+import EWayBills from './pages/EWayBills';
+import RecurringInvoices from './pages/RecurringInvoices';
+import RecurringInvoiceForm from './pages/RecurringInvoiceForm';
+import TrialBalanceReport from './pages/TrialBalanceReport';
+import GstReports from './pages/GstReports';
+import JournalVouchers from './pages/JournalVouchers';
+import JournalVoucherForm from './pages/JournalVoucherForm';
 import Settings from './pages/Settings';
 import AiTraining from './pages/AiTraining';
 
@@ -187,6 +214,41 @@ function AppRoutes() {
           <Layout><InvoiceForm /></Layout>
         </CompanyRoute>
       } />
+      <Route path="/quotations" element={
+        <CompanyRoute>
+          <Layout><Quotations /></Layout>
+        </CompanyRoute>
+      } />
+      <Route path="/quotations/new" element={
+        <CompanyRoute>
+          <Layout><QuotationForm /></Layout>
+        </CompanyRoute>
+      } />
+      <Route path="/quotations/:id" element={
+        <CompanyRoute>
+          <Layout><QuotationDetail /></Layout>
+        </CompanyRoute>
+      } />
+      <Route path="/quotations/:id/edit" element={
+        <CompanyRoute>
+          <Layout><QuotationForm /></Layout>
+        </CompanyRoute>
+      } />
+      <Route path="/credit-notes" element={
+        <CompanyRoute>
+          <Layout><CreditNotes /></Layout>
+        </CompanyRoute>
+      } />
+      <Route path="/credit-notes/new" element={
+        <CompanyRoute>
+          <Layout><CreditNoteForm /></Layout>
+        </CompanyRoute>
+      } />
+      <Route path="/credit-notes/:id" element={
+        <CompanyRoute>
+          <Layout><CreditNoteDetail /></Layout>
+        </CompanyRoute>
+      } />
       <Route path="/parties" element={
         <CompanyRoute>
           <Layout><Parties /></Layout>
@@ -197,9 +259,44 @@ function AppRoutes() {
           <Layout><Products /></Layout>
         </CompanyRoute>
       } />
+      <Route path="/purchase-orders" element={
+        <CompanyRoute>
+          <Layout><PurchaseOrders /></Layout>
+        </CompanyRoute>
+      } />
+      <Route path="/purchase-orders/new" element={
+        <CompanyRoute>
+          <Layout><PurchaseOrderForm /></Layout>
+        </CompanyRoute>
+      } />
+      <Route path="/purchase-orders/:id" element={
+        <CompanyRoute>
+          <Layout><PurchaseOrderDetail /></Layout>
+        </CompanyRoute>
+      } />
+      <Route path="/purchase-orders/:id/edit" element={
+        <CompanyRoute>
+          <Layout><PurchaseOrderForm /></Layout>
+        </CompanyRoute>
+      } />
       <Route path="/purchases" element={
         <CompanyRoute>
           <Layout><Purchases /></Layout>
+        </CompanyRoute>
+      } />
+      <Route path="/debit-notes" element={
+        <CompanyRoute>
+          <Layout><DebitNotes /></Layout>
+        </CompanyRoute>
+      } />
+      <Route path="/debit-notes/new" element={
+        <CompanyRoute>
+          <Layout><DebitNoteForm /></Layout>
+        </CompanyRoute>
+      } />
+      <Route path="/debit-notes/:id" element={
+        <CompanyRoute>
+          <Layout><DebitNoteDetail /></Layout>
         </CompanyRoute>
       } />
       <Route path="/stock" element={
@@ -226,6 +323,54 @@ function AppRoutes() {
       } />
       <Route path="/reports/accountant" element={
         <CompanyRoute><Layout><AccountantReport /></Layout></CompanyRoute>
+      } />
+      <Route path="/expenses" element={
+        <CompanyRoute><Layout><Expenses /></Layout></CompanyRoute>
+      } />
+      <Route path="/reports/profit-and-loss" element={
+        <CompanyRoute><Layout><ProfitLossReport /></Layout></CompanyRoute>
+      } />
+      <Route path="/reports/balance-sheet" element={
+        <CompanyRoute><Layout><BalanceSheetReport /></Layout></CompanyRoute>
+      } />
+      <Route path="/reports/gst" element={
+        <CompanyRoute><Layout><GstReports /></Layout></CompanyRoute>
+      } />
+      <Route path="/reports/trial-balance" element={
+        <CompanyRoute><Layout><TrialBalanceReport /></Layout></CompanyRoute>
+      } />
+      <Route path="/journal-vouchers" element={
+        <CompanyRoute><Layout><JournalVouchers /></Layout></CompanyRoute>
+      } />
+      <Route path="/journal-vouchers/new" element={
+        <CompanyRoute><Layout><JournalVoucherForm /></Layout></CompanyRoute>
+      } />
+      <Route path="/warehouses" element={
+        <CompanyRoute><Layout><Warehouses /></Layout></CompanyRoute>
+      } />
+      <Route path="/stock-transfers" element={
+        <CompanyRoute><Layout><StockTransfers /></Layout></CompanyRoute>
+      } />
+      <Route path="/reports/stock-ageing" element={
+        <CompanyRoute><Layout><StockAgeing /></Layout></CompanyRoute>
+      } />
+      <Route path="/barcodes" element={
+        <CompanyRoute><Layout><BarcodeGenerator /></Layout></CompanyRoute>
+      } />
+      <Route path="/bank-reconciliation" element={
+        <CompanyRoute><Layout><BankReconciliation /></Layout></CompanyRoute>
+      } />
+      <Route path="/eway-bills" element={
+        <CompanyRoute><Layout><EWayBills /></Layout></CompanyRoute>
+      } />
+      <Route path="/recurring-invoices" element={
+        <CompanyRoute><Layout><RecurringInvoices /></Layout></CompanyRoute>
+      } />
+      <Route path="/recurring-invoices/new" element={
+        <CompanyRoute><Layout><RecurringInvoiceForm /></Layout></CompanyRoute>
+      } />
+      <Route path="/recurring-invoices/:id/edit" element={
+        <CompanyRoute><Layout><RecurringInvoiceForm /></Layout></CompanyRoute>
       } />
       <Route path="/company" element={
         <PrivateRoute>

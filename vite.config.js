@@ -26,12 +26,15 @@ export default defineConfig({
     host: true,
     proxy: {
       '/api': {
-        target: 'http://localhost/BhaviSoft/billing-software/php-backend',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+      '/auth/bhauu': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
       },
       '/uploads': {
-        target: 'http://localhost/BhaviSoft/billing-software/php-backend',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
     },

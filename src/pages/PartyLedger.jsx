@@ -34,6 +34,7 @@ export default function PartyLedger() {
   const [payForm, setPayForm] = useState({
     invoice_id: "",
     purchase_id: "",
+    account_id: "",
     payment_type: "general",
     amount: "",
     payment_date: format(new Date(), "yyyy-MM-dd"),
@@ -42,6 +43,15 @@ export default function PartyLedger() {
     notes: "",
     idempotency_key: "",
   });
+  const [bankAccounts, setBankAccounts] = useState([]);
+
+  useEffect(() => {
+    api.get("/ledgers/accounts").then(({ data }) => {
+      if (data?.success) {
+        setBankAccounts((data.accounts || []).filter(a => a.account_type === 'bank' && a.is_active != 0));
+      }
+    }).catch(() => {});
+  }, []);
 
   const [returnForm, setReturnForm] = useState({
     invoice_id: "",
@@ -76,6 +86,7 @@ export default function PartyLedger() {
     setPayForm({
       invoice_id: invoice.id,
       purchase_id: "",
+      account_id: bankAccounts[0]?.id || "",
       payment_type: "invoice",
       amount: outstanding.toFixed(2),
       payment_date: format(new Date(), "yyyy-MM-dd"),
@@ -95,6 +106,7 @@ export default function PartyLedger() {
     setPayForm({
       invoice_id: "",
       purchase_id: purchase.id,
+      account_id: bankAccounts[0]?.id || "",
       payment_type: "purchase",
       amount: outstanding.toFixed(2),
       payment_date: format(new Date(), "yyyy-MM-dd"),
@@ -113,6 +125,7 @@ export default function PartyLedger() {
     setPayForm({
       invoice_id: "",
       purchase_id: "",
+      account_id: bankAccounts[0]?.id || "",
       payment_type: "general",
       amount: "",
       payment_date: format(new Date(), "yyyy-MM-dd"),
@@ -1060,6 +1073,32 @@ export default function PartyLedger() {
                   </select>
                 </div>
               </div>
+
+              {payForm.payment_mode === 'cash' ? (
+                <div className="text-xs text-emerald-800 bg-emerald-50 p-2.5 rounded-lg border border-emerald-200 flex items-center gap-2">
+                  <span>💵 <strong>Khata:</strong> Cash in Hand (Galla / Rokad)</span>
+                </div>
+              ) : (
+                <div>
+                  <label className="label">Deposit To Bank Account</label>
+                  {bankAccounts.length <= 1 ? (
+                    <div className="text-xs text-blue-800 bg-blue-50 p-2.5 rounded-lg border border-blue-200 flex items-center justify-between">
+                      <span>🏦 <strong>Bank:</strong> {bankAccounts[0]?.name || 'Primary Bank Account'}</span>
+                      {bankAccounts[0]?.account_no && <span className="font-mono text-gray-600">A/C: {bankAccounts[0].account_no}</span>}
+                    </div>
+                  ) : (
+                    <select
+                      className="input-field"
+                      value={payForm.account_id || bankAccounts[0]?.id}
+                      onChange={(e) => setPayForm(p => ({ ...p, account_id: e.target.value }))}
+                    >
+                      {bankAccounts.map(b => (
+                        <option key={b.id} value={b.id}>{b.name} {b.account_no ? `(A/C: ${b.account_no})` : ''}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="label">Reference No. (optional)</label>

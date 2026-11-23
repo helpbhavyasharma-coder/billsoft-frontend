@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import { Plus, Trash2, Search, X, FileDown, Save } from 'lucide-react';
+import { Plus, Trash2, Search, X, FileDown, Save, Barcode } from 'lucide-react';
 import { format } from 'date-fns';
 
 const emptyItem = () => ({
@@ -201,6 +201,55 @@ export default function InvoiceForm() {
 
   const addItem = () => setItems(prev => [...prev, emptyItem()]);
 
+  const [barcodeInput, setBarcodeInput] = useState('');
+
+  const handleBarcodeScan = (code) => {
+    const clean = String(code || '').trim();
+    if (!clean) return;
+
+    let prod = products.find(p => p.barcode && p.barcode.trim().toLowerCase() === clean.toLowerCase());
+    if (!prod) {
+      prod = products.find(p => String(p.id) === clean || p.name.trim().toLowerCase() === clean.toLowerCase());
+    }
+
+    if (!prod) {
+      toast.error(`No product found with barcode: ${clean}`);
+      return;
+    }
+
+    const existingIdx = items.findIndex(it => it.product_id === prod.id);
+    if (existingIdx !== -1) {
+      const updated = [...items];
+      const newQty = Number(updated[existingIdx].qty || 0) + 1;
+      updated[existingIdx] = calcItem({
+        ...updated[existingIdx],
+        qty: newQty,
+      }, isInterstate);
+      setItems(updated);
+      toast.success(`Incremented: ${prod.name} (Qty: ${newQty})`);
+    } else {
+      const emptyIdx = items.findIndex(it => !it.description && !it.product_id);
+      if (emptyIdx !== -1) {
+        selectProduct(emptyIdx, prod);
+      } else {
+        const defaultRate = productRate(prod);
+        const hasFixedRate = defaultRate !== '' && parseFloat(defaultRate) > 0;
+        const newItem = calcItem({
+          ...emptyItem(),
+          product_id: prod.id,
+          description: prod.name,
+          hsn_code: prod.hsn_code || '',
+          unit: prod.unit || 'Pcs',
+          rate: hasFixedRate ? defaultRate : '',
+          gst_rate: productGstRate(prod),
+          rate_is_fixed: hasFixedRate,
+        }, isInterstate);
+        setItems(prev => [...prev, newItem]);
+      }
+      toast.success(`Added: ${prod.name}`);
+    }
+  };
+
   const duplicateLastItem = () => {
     const source = items[items.length - 1] || emptyItem();
     const nextIndex = items.length;
@@ -245,8 +294,12 @@ export default function InvoiceForm() {
 
     setSaving(true);
     try {
+      const isCashSale = Boolean(form.party_name && form.party_name.trim().toLowerCase() === 'cash');
       const payload = {
         ...form,
+        is_cash_sale: isCashSale,
+        payment_status: isCashSale ? 'paid' : (form.payment_status || 'unpaid'),
+        amount_paid: isCashSale ? grandTotal : (form.amount_paid || 0),
         invoice_no: invoiceNo,
         items: items.filter(i => i.description),
       };
@@ -337,6 +390,11 @@ export default function InvoiceForm() {
                   )}
                 </div>
               )}
+              {form.party_name && form.party_name.trim().toLowerCase() === 'cash' && (
+                <div className="mt-1.5 p-2 rounded-lg text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1.5 font-medium">
+                  <span>💵 <strong>Cash Sale (Counter):</strong> Bill banne par turant <strong>Paid</strong> mark hoga aur Cash Ledger (Galla) me jama hoga.</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -397,9 +455,28 @@ export default function InvoiceForm() {
             <h3 className="font-semibold" style={{color:'var(--text)'}}>Items</h3>
             <p className="text-xs mt-0.5" style={{color:'var(--text-3)'}}>Product select karte hi HSN, unit, GST aur saved rate auto fill hoga.</p>
           </div>
-          <button type="button" onClick={addItem} className="btn-secondary flex items-center gap-1 text-sm whitespace-nowrap">
-            <Plus className="w-4 h-4" /> Add Row
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Barcode className="w-4 h-4 absolute left-2.5 top-2.5 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Scan barcode [Enter]..."
+                value={barcodeInput}
+                onChange={(e) => setBarcodeInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleBarcodeScan(barcodeInput);
+                    setBarcodeInput('');
+                  }
+                }}
+                className="input text-xs pl-8 pr-2.5 py-1.5 w-44 font-mono"
+              />
+            </div>
+            <button type="button" onClick={addItem} className="btn-secondary flex items-center gap-1 text-sm whitespace-nowrap">
+              <Plus className="w-4 h-4" /> Add Row
+            </button>
+          </div>
         </div>
 
         <div className="hidden lg:grid grid-cols-[42px_minmax(250px,2fr)_90px_90px_96px_132px_118px_92px_132px_42px] gap-2 px-3 py-2 rounded-xl text-xs font-semibold uppercase"
