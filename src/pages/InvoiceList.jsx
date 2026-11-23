@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
+import apiCache from '../api/apiCache';
 import toast from 'react-hot-toast';
 import { Plus, FileDown, Eye, Edit, Trash2, MessageCircle, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
@@ -34,13 +35,35 @@ const compareInvoicesByNumber = (a, b) => {
 export default function InvoiceList() {
   const navigate = useNavigate();
   const { company } = useAuth();
-  const [invoices, setInvoices] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = usePageMemory('invoices_search', '');
   const [status, setStatus] = usePageMemory('invoices_status', '');
   const [limit, setLimit] = usePageMemory('invoices_limit', 20);
   const [customLimit, setCustomLimit] = useState('20');
   const [pagination, setPagination] = usePageMemory('invoices_pagination', { total: 0, page: 1, pages: 1 });
+
+  const getInitialInvoices = () => {
+    try {
+      const cleanSearch = (typeof search === 'string' && search.trim() && search !== '[object Object]') ? search.trim() : '';
+      const cleanStatus = (typeof status === 'string' && status.trim() && status !== '[object Object]') ? status.trim() : '';
+      const validPage = Number.isInteger(Number(pagination?.page)) && Number(pagination?.page) > 0 ? Number(pagination?.page) : 1;
+      const validLimit = Number.isInteger(Number(limit)) && Number(limit) > 0 ? Number(limit) : 20;
+
+      const params = new URLSearchParams({
+        page: validPage,
+        limit: validLimit,
+        ...(cleanSearch && { search: cleanSearch }),
+        ...(cleanStatus && { status: cleanStatus }),
+      });
+      const cached = apiCache.get(`/invoices?${params}`);
+      return cached?.invoices || null;
+    } catch (_) {
+      return null;
+    }
+  };
+
+  const initialInvoices = getInitialInvoices();
+  const [invoices, setInvoices] = useState(() => initialInvoices || []);
+  const [loading, setLoading] = useState(() => initialInvoices === null);
   const [downloading, setDownloading] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const [selectedById, setSelectedById] = useState({});

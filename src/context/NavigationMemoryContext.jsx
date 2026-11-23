@@ -4,29 +4,37 @@ import apiCache from '../api/apiCache';
 
 const NavigationMemoryContext = createContext(null);
 
-const STORAGE_KEY_SCROLL = 'softbill_nav_scroll_v2';
-const STORAGE_KEY_STATE = 'softbill_nav_state_v2';
+const STORAGE_KEY_SCROLL = 'softbill_nav_scroll_v3';
+const STORAGE_KEY_STATE = 'softbill_nav_state_v3';
 
 /**
  * Centralized Navigation Memory Provider.
  * Stores:
- * 1. Scroll positions keyed by history entry `location.key`.
+ * 1. Scroll positions keyed by history entry `location.key`, `path:pathname`, and `url:pathname+search`.
  * 2. Route UI states (search, filters, pagination, tabs, sorting).
  * 3. Supports multiple scrollable containers on any page.
+ * 4. Intercepts clicks and popstate before component unmount to guarantee scroll position is never lost.
  */
 export function NavigationMemoryProvider({ children }) {
   const location = useLocation();
-  const navigationType = useNavigationType(); // 'POP' (back/forward), 'PUSH' (new link), 'REPLACE'
+  const navigationType = useNavigationType(); // 'POP', 'PUSH', 'REPLACE'
 
   // In-memory records
   const scrollMapRef = useRef(new Map());
   const stateMapRef = useRef(new Map());
   const registeredContainersRef = useRef(new Set());
+  const isRestoringRef = useRef(false);
 
   // Restore session storage cache on first mount (for page reload resilience)
   useEffect(() => {
     try {
-      try { sessionStorage.removeItem('softbill_nav_scroll_v1'); sessionStorage.removeItem('softbill_nav_state_v1'); } catch (_) {}
+      try {
+        sessionStorage.removeItem('softbill_nav_scroll_v1');
+        sessionStorage.removeItem('softbill_nav_state_v1');
+        sessionStorage.removeItem('softbill_nav_scroll_v2');
+        sessionStorage.removeItem('softbill_nav_state_v2');
+      } catch (_) {}
+
       const savedScroll = sessionStorage.getItem(STORAGE_KEY_SCROLL);
       if (savedScroll) {
         const parsed = JSON.parse(savedScroll);
@@ -62,46 +70,73 @@ export function NavigationMemoryProvider({ children }) {
     };
   }, []);
 
-  /** Save scroll position for a specific history key and container */
-  const saveScroll = useCallback((historyKey, containerId, top, left = 0) => {
-    if (!historyKey) return;
-    const current = scrollMapRef.current.get(historyKey) || {};
-    current[containerId] = { top: Math.max(0, top), left: Math.max(0, left), timestamp: Date.now() };
-    scrollMapRef.current.set(historyKey, current);
+  /** Save scroll position for a specific history key, pathname, and container */
+  const saveScroll = useCallback((historyKey, containerId, top, left = 0, explicitPathname = null) => {
+    if (!historyKey && !explicitPathname) return;
 
-    // Also associate with pathname as secondary fallback if key isn't matched
-    scrollMapRef.current.set(`path:${location.pathname}`, current);
-  }, [location.pathname]);
+    const pathKey = explicitPathname || location.pathname;
+    const urlKey = explicitPathname ? explicitPathname : `${location.pathname}${location.search}`;
 
-  /** Get saved scroll position */
-  const getScroll = useCallback((historyKey, containerId) => {
-    if (!historyKey) return null;
-    const byKey = scrollMapRef.current.get(historyKey);
-    if (byKey && byKey[containerId]) return byKey[containerId];
+    const newTop = Math.max(0, Math.round(top));
+    const newLeft = Math.max(0, Math.round(left));
 
-    // Fallback by pathname
+    const entry = { top: newTop, left: newLeft, timestamp: Date.now() };
+
+    if (historyKey) {
+      const current = scrollMapRef.current.get(historyKey) || {};
+      current[containerId] = entry;
+      scrollMapRef.current.set(historyKey, current);
+    }
+
+    if (pathKey) {
+      const pathCurrent = scrollMapRef.current.get(`path:${pathKey}`) || {};
+      pathCurrent[containerId] = entry;
+      scrollMapRef.current.set(`path:${pathKey}`, pathCurrent);
+    }
+
+    if (urlKey) {
+      const urlCurrent = scrollMapRef.current.get(`url:${urlKey}`) || {};
+      urlCurrent[containerId] = entry;
+      scrollMapRef.current.set(`url:${urlKey}`, urlCurrent);
+    }
+  }, [location.pathname, location.search]);
+
+  /** Get saved scroll position with intelligent multi-level fallback */
+  const getScroll = useCallback((historyKey, containerId = 'main') => {
+    // 1. Try by historyKey if provided and has valid scroll
+    if (historyKey) {
+      const byKey = scrollMapRef.current.get(historyKey);
+      if (byKey?.[containerId]?.top > 0) return byKey[containerId];
+    }
+
+    // 2. Try by exact URL (pathname + search)
+    const urlKey = `${location.pathname}${location.search}`;
+    const byUrl = scrollMapRef.current.get(`url:${urlKey}`);
+    if (byUrl?.[containerId]?.top > 0) return byUrl[containerId];
+
+    // 3. Try by pathname
     const byPath = scrollMapRef.current.get(`path:${location.pathname}`);
-    if (byPath && byPath[containerId]) return byPath[containerId];
+    if (byPath?.[containerId]?.top > 0) return byPath[containerId];
+
+    // 4. Fallback to 0 if exists
+    if (historyKey && scrollMapRef.current.has(historyKey)) {
+      return scrollMapRef.current.get(historyKey)?.[containerId] || null;
+    }
 
     return null;
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
 
   /** Snapshot all registered containers for the current history entry */
-  const snapshotActiveScrolls = useCallback((historyKey = location.key) => {
-    if (!historyKey) return;
-
-    // 1. Primary Layout Scroll Container
+  const snapshotActiveScrolls = useCallback((historyKey = location.key, explicitPathname = location.pathname) => {
     const mainEl = document.getElementById('app-main-content');
-    if (mainEl) {
-      saveScroll(historyKey, 'main', mainEl.scrollTop, mainEl.scrollLeft);
+    if (mainEl && mainEl.scrollTop > 0) {
+      saveScroll(historyKey, 'main', mainEl.scrollTop, mainEl.scrollLeft, explicitPathname);
     }
 
-    // 2. Window Scroll (if applicable)
     if (typeof window !== 'undefined' && (window.scrollY > 0 || window.scrollX > 0)) {
-      saveScroll(historyKey, 'window', window.scrollY, window.scrollX);
+      saveScroll(historyKey, 'window', window.scrollY, window.scrollX, explicitPathname);
     }
 
-    // 3. Any additional registered containers
     registeredContainersRef.current.forEach((refOrSelector) => {
       let el = null;
       let id = 'custom';
@@ -116,11 +151,33 @@ export function NavigationMemoryProvider({ children }) {
         id = el.id || el.getAttribute('data-scroll-id') || 'custom_el';
       }
 
-      if (el && el !== mainEl) {
-        saveScroll(historyKey, id, el.scrollTop, el.scrollLeft);
+      if (el && el !== mainEl && el.scrollTop > 0) {
+        saveScroll(historyKey, id, el.scrollTop, el.scrollLeft, explicitPathname);
       }
     });
-  }, [location.key, saveScroll]);
+  }, [location.key, location.pathname, saveScroll]);
+
+  // Capture scroll on ANY navigation link click or back/forward popstate BEFORE React unmounts
+  useEffect(() => {
+    const handleDocumentClick = (e) => {
+      const clickTarget = e.target.closest('a, button, [role="button"]');
+      if (clickTarget) {
+        snapshotActiveScrolls(location.key, location.pathname);
+      }
+    };
+
+    const handlePopState = () => {
+      snapshotActiveScrolls(location.key, location.pathname);
+    };
+
+    window.addEventListener('click', handleDocumentClick, true);
+    window.addEventListener('popstate', handlePopState, true);
+
+    return () => {
+      window.removeEventListener('click', handleDocumentClick, true);
+      window.removeEventListener('popstate', handlePopState, true);
+    };
+  }, [location.key, location.pathname, snapshotActiveScrolls]);
 
   /** Save UI state for a page/route */
   const savePageState = useCallback((pageKey, state) => {
@@ -161,6 +218,7 @@ export function NavigationMemoryProvider({ children }) {
   const value = {
     location,
     navigationType,
+    isRestoringRef,
     registerContainer,
     saveScroll,
     getScroll,

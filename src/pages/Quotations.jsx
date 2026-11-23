@@ -2,18 +2,33 @@ import usePageMemory from '../hooks/usePageMemory';
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
+import apiCache from '../api/apiCache';
 import toast from 'react-hot-toast';
 import { Plus, Eye, Edit, Trash2, ArrowRightCircle, Printer, MessageCircle, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import { PageHeader, SearchField, StatusBadge, Money, LoadingState, EmptyState } from '../components/ui';
 
 export default function Quotations() {
   const navigate = useNavigate();
-  const [quotations, setQuotations] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = usePageMemory('quotations_search', '');
   const [status, setStatus] = usePageMemory('quotations_status', '');
-  const [convertingId, setConvertingId] = useState(null);
   const [pagination, setPagination] = usePageMemory('quotations_pagination', { total: 0, page: 1, pages: 1 });
+
+  const getInitialQuotations = () => {
+    try {
+      const params = new URLSearchParams({ page: pagination.page, limit: 20 });
+      if (search) params.append('search', search);
+      if (status) params.append('status', status);
+      const cached = apiCache.get(`/quotations?${params}`);
+      return cached?.quotations || null;
+    } catch (_) {
+      return null;
+    }
+  };
+
+  const initialQuotations = getInitialQuotations();
+  const [quotations, setQuotations] = useState(() => initialQuotations || []);
+  const [loading, setLoading] = useState(() => initialQuotations === null);
+  const [convertingId, setConvertingId] = useState(null);
 
   useEffect(() => {
     fetchQuotations();

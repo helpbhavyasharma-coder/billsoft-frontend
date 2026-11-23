@@ -2,6 +2,7 @@ import usePageMemory from '../hooks/usePageMemory';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
+import apiCache from '../api/apiCache';
 import toast from 'react-hot-toast';
 import { Eye, Pencil, Plus, ShoppingCart, Trash2, X, AlertTriangle, CheckCircle, Ban } from 'lucide-react';
 import { EmptyState, LoadingState, Money, PageHeader, StatusBadge } from '../components/ui';
@@ -64,16 +65,20 @@ const emptyForm = () => ({
 });
 
 export default function Purchases() {
-  const [purchases, setPurchases] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [parties, setParties] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = usePageMemory('purchases_status_filter', 'active');
+  const cachedPurchases = apiCache.get(`/purchases?status=${statusFilter}`)?.purchases || null;
+  const cachedProducts = apiCache.get('/products')?.products || null;
+  const cachedParties = apiCache.get('/parties')?.parties || null;
+
+  const [purchases, setPurchases] = useState(() => cachedPurchases || []);
+  const [products, setProducts] = useState(() => cachedProducts || []);
+  const [parties, setParties] = useState(() => cachedParties || []);
+  const [loading, setLoading] = useState(() => cachedPurchases === null);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [form, setForm] = useState(emptyForm);
-  const [statusFilter, setStatusFilter] = usePageMemory('purchases_status_filter', 'active');
 
   // Cancellation modal state
   const [cancellingPurchase, setCancellingPurchase] = useState(null);

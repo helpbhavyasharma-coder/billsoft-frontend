@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../api/axios';
+import apiCache from '../api/apiCache';
 import toast from 'react-hot-toast';
 import { Plus, Edit, Trash2, X, Package } from 'lucide-react';
 import { EmptyState, IconButton, LoadingState, Money, PageHeader, SearchField } from '../components/ui';
@@ -22,8 +23,9 @@ const UNITS = ['Pcs', 'KG', 'Gm', 'Ltr', 'Box', 'Bag', 'Dozen', 'Meter', 'Nos'];
 const GST_RATES = [0, 5, 12, 18, 28];
 
 export default function Products() {
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cachedProducts = apiCache.get('/products')?.products || null;
+  const [products, setProducts] = useState(() => cachedProducts || []);
+  const [loading, setLoading] = useState(() => cachedProducts === null);
   const [search, setSearch] = usePageMemory('products_search', '');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);

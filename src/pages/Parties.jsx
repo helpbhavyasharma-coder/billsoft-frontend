@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
+import apiCache from '../api/apiCache';
 import toast from 'react-hot-toast';
 import { Plus, Edit, Trash2, X, Phone } from 'lucide-react';
 import { INDIAN_STATES } from '../data/states';
@@ -21,9 +22,23 @@ const PARTY_PLACEHOLDERS = [
 const randomPlaceholder = PARTY_PLACEHOLDERS[Math.floor(Math.random() * PARTY_PLACEHOLDERS.length)];
 
 export default function Parties() {
-  const [parties, setParties] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = usePageMemory('parties_search', '');
+
+  // Synchronously initialize from cache for instant DOM height & zero-jump scroll restoration
+  const getInitialParties = () => {
+    try {
+      const cleanSearch = (typeof search === 'string' && search.trim() && search !== '[object Object]') ? search.trim() : '';
+      const params = cleanSearch ? `?search=${encodeURIComponent(cleanSearch)}` : '';
+      const cached = apiCache.get(`/parties${params}`);
+      return cached?.parties || null;
+    } catch (_) {
+      return null;
+    }
+  };
+
+  const initialParties = getInitialParties();
+  const [parties, setParties] = useState(() => initialParties || []);
+  const [loading, setLoading] = useState(() => initialParties === null);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
