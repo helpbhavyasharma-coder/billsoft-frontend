@@ -402,6 +402,7 @@ export default function LandingPage() {
         {/* 1. Hero Section with Interactive Live Billing Preview */}
         <ScrollReveal direction="up" delay={0.05}>
           <Hero 
+            darkMode={darkMode}
             onLoginClick={handleLogin}
             onOpenSampleInvoice={handleOpenSampleInvoice}
             onWhatsAppSharePrompt={handleWhatsAppSharePrompt}

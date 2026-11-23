@@ -15,6 +15,7 @@ import { Language } from '../lib/businessPresets';
 import { TRANSLATIONS } from '../lib/translations';
 
 interface HeroProps {
+  darkMode?: boolean;
   onLoginClick: () => void;
   onOpenSampleInvoice: () => void;
   onWhatsAppSharePrompt: () => void;
@@ -23,6 +24,7 @@ interface HeroProps {
 }
 
 export const Hero: React.FC<HeroProps> = ({ 
+  darkMode = false,
   onLoginClick, 
   onOpenSampleInvoice, 
   onWhatsAppSharePrompt,
@@ -95,7 +97,7 @@ export const Hero: React.FC<HeroProps> = ({
             {t.heroBadge}
           </div>
 
-          <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white dark:!text-white leading-tight">
+          <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white dark:!text-white leading-tight" style={{ color: darkMode ? "#ffffff" : "#0f172a" }}>
             {isHi ? (
               <>भारतीय रिटेल और व्यापार के लिए <span className="text-emerald-600 dark:text-emerald-400">सबसे तेज जीएसटी बिलिंग</span></>
             ) : (

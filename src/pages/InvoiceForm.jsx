@@ -55,6 +55,8 @@ export default function InvoiceForm() {
   const [productSearch, setProductSearch] = useState({});
   const [showProductDropdown, setShowProductDropdown] = useState({});
   const [invoiceNo, setInvoiceNo] = useState('');
+  const [estimatedInvoiceNo, setEstimatedInvoiceNo] = useState('');
+  const [isCustomInvoiceNo, setIsCustomInvoiceNo] = useState(false);
 
   const [form, setForm] = useState({
     party_id: null,
@@ -99,7 +101,10 @@ export default function InvoiceForm() {
   const fetchNextInvoiceNo = async () => {
     try {
       const { data } = await api.get('/invoices/next-number');
-      if (data.success) setInvoiceNo(data.invoice_no);
+      if (data.success && data.invoice_no) {
+        setEstimatedInvoiceNo(data.invoice_no);
+        setInvoiceNo(data.invoice_no);
+      }
     } catch {}
   };
 
@@ -295,12 +300,13 @@ export default function InvoiceForm() {
     setSaving(true);
     try {
       const isCashSale = Boolean(form.party_name && form.party_name.trim().toLowerCase() === 'cash');
+      const isAutoAllocated = !isEdit && (!isCustomInvoiceNo || !invoiceNo.trim() || invoiceNo.trim().toLowerCase() === 'auto' || invoiceNo === estimatedInvoiceNo);
       const payload = {
         ...form,
         is_cash_sale: isCashSale,
         payment_status: isCashSale ? 'paid' : (form.payment_status || 'unpaid'),
         amount_paid: isCashSale ? grandTotal : (form.amount_paid || 0),
-        invoice_no: invoiceNo,
+        invoice_no: isAutoAllocated ? 'auto' : invoiceNo.trim(),
         items: items.filter(i => i.description),
       };
 
@@ -312,7 +318,8 @@ export default function InvoiceForm() {
       }
 
       if (data.success) {
-        toast.success(isEdit ? 'Invoice updated!' : 'Invoice created!');
+        const finalNo = data.invoice?.invoice_no || invoiceNo;
+        toast.success(isEdit ? `Invoice updated (${finalNo})!` : `Invoice #${finalNo} created!`);
         navigate(`/invoices/${data.invoice.id}`);
       }
     } catch (err) {
@@ -400,14 +407,30 @@ export default function InvoiceForm() {
 
           {/* Invoice No */}
           <div>
-            <label className="label">Invoice No.</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="label mb-0">Invoice No.</label>
+              {!isEdit && (
+                <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                  ⚡ Auto-Allocated on Save
+                </span>
+              )}
+            </div>
             <input
               type="text"
               className="input-field"
               style={{backgroundColor:'var(--bg-muted)'}}
+              placeholder={estimatedInvoiceNo ? `Auto (${estimatedInvoiceNo})` : 'Auto on Save'}
               value={invoiceNo}
-              onChange={(e) => setInvoiceNo(e.target.value)}
+              onChange={(e) => {
+                setInvoiceNo(e.target.value);
+                setIsCustomInvoiceNo(true);
+              }}
             />
+            {!isEdit && (
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                Multi-device safe: Final sequence is locked and allocated atomically upon save.
+              </p>
+            )}
           </div>
 
           {/* Date */}
