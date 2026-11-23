@@ -95,13 +95,15 @@ export const Hero: React.FC<HeroProps> = ({
             {t.heroBadge}
           </div>
 
-          <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight">
-            {isHi 
-              ? 'भारतीय रिटेल और व्यापार के लिए सबसे तेज जीएसटी बिलिंग' 
-              : 'GST Billing & Business Management for Daily Indian Commerce'}
+          <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white dark:!text-white leading-tight">
+            {isHi ? (
+              <>भारतीय रिटेल और व्यापार के लिए <span className="text-emerald-600 dark:text-emerald-400">सबसे तेज जीएसटी बिलिंग</span></>
+            ) : (
+              <>GST Billing & Business Management for <span className="text-emerald-600 dark:text-emerald-400">Daily Indian Commerce</span></>
+            )}
           </h1>
 
-          <p className="mt-2.5 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-xl mx-auto">
+          <p className="mt-2.5 text-xs sm:text-sm text-slate-600 dark:text-slate-200 leading-relaxed max-w-xl mx-auto font-normal">
             {t.heroDesc}
           </p>
 
